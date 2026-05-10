@@ -99,7 +99,7 @@ async function extractChatWithImages(
     await page.setViewport({ width: 1280, height: 800 });
 
     console.log(`Navigating to ${url}...`);
-    await page.goto(url, { waitUntil: "networkidle2", timeout: 60000 });
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 90000 });
 
     // Instantly check for deleted chats BEFORE we wait for messages!
     let bodyTextEarly = await page.evaluate(() => document.body.innerText);
@@ -546,13 +546,14 @@ app.post("/api/extract", async (req, res) => {
 
     if (
       error.name === "TimeoutError" ||
-      (error.message && error.message.includes("timeout"))
+      (error.message && error.message.includes("timeout")) ||
+      (error.message && error.message.includes("TargetCloseError"))
     ) {
       return res.status(504).json({
         error: "TIMEOUT",
         message:
-          "Extraction timed out. Cloudflare might have blocked the headless browser or the page took too long to load.",
-        suggestion: "Try again, or use Markdown/HTML export instead.",
+          "Extraction timed out. If you are hosting on Render, the default headless API limit might be reached, and local bypass failed. Please create a free account at Browserless.io and add BROWSERLESS_TOKEN to your environment variables on Render.",
+        suggestion: "Try again later, add a custom BROWSERLESS_TOKEN, or use Markdown/HTML export instead.",
       });
     }
 
