@@ -79,7 +79,7 @@ async function extractChatWithImages(
     const page = await browser.newPage();
 
     console.log(`Navigating to ${url}...`);
-    await page.goto(url, { waitUntil: "networkidle2", timeout: 60000 });
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
 
     // Handle Cloudflare or other "Just a moment..." interstitials
     let title = await page.title();
@@ -122,11 +122,14 @@ async function extractChatWithImages(
         await new Promise<void>((resolve) => {
           let totalHeight = 0;
           const distance = 300;
+          let iterations = 0;
           const timer = setInterval(() => {
             const scrollHeight = document.documentElement.scrollHeight;
             window.scrollBy(0, distance);
             totalHeight += distance;
-            if (totalHeight >= scrollHeight) {
+            iterations++;
+            // Maximum of 150 scrolls (about 15 seconds)
+            if (totalHeight >= scrollHeight || iterations > 150) {
               clearInterval(timer);
               resolve();
             }
