@@ -1,0 +1,6 @@
+{
+  "name": "Sentence App",
+  "description": "An app extracted from the indusairavoto-afk/sentence repository detailing web scraping, HTML parsing, Globe components, and more.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
