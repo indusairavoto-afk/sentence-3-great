@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build && npx -y esbuild server.ts --platform=node --format=cjs --outfile=dist/server.cjs --bundle --external:vite --external:express --external:puppeteer --external:puppeteer-extra --external:puppeteer-extra-plugin-stealth && npx puppeteer browsers install chrome",
+    "build": "vite build && esbuild server.ts --platform=node --format=cjs --outfile=dist/server.cjs --bundle --external:vite --external:express --external:puppeteer --external:puppeteer-extra --external:puppeteer-extra-plugin-stealth && npx puppeteer browsers install chrome",
     "preview": "vite preview",
     "start": "node dist/server.cjs",
     "clean": "rm -rf dist",
@@ -42,7 +42,8 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
     "three": "^0.184.0",
-    "vite": "^6.2.3"
+    "vite": "^6.2.3",
+    "esbuild": "^0.28.0"
   },
   "devDependencies": {
     "@types/cheerio": "^0.22.35",
@@ -52,10 +53,8 @@
     "@types/html-to-text": "^9.0.4",
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
-    "esbuild": "^0.28.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.3"
+    "typescript": "~5.8.2"
   }
 }
