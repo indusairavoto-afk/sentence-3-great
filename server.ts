@@ -77,9 +77,23 @@ async function extractChatWithImages(
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });
     const page = await browser.newPage();
+    await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+    await page.setExtraHTTPHeaders({
+       'Accept-Language': 'en-US,en;q=0.9',
+    });
+    await page.setViewport({ width: 1280, height: 800 });
 
     console.log(`Navigating to ${url}...`);
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
+
+    try {
+      // Wait for React to render the messages, or timeout after 10000ms
+      await page.waitForSelector('[data-message-author-role], article, .prose', { timeout: 10000 });
+    } catch (e) {
+      console.log("Wait for selector timed out, page might still be rendering or empty...");
+      // Try waiting a bit more for network traffic to settle
+      await new Promise(r => setTimeout(r, 5000));
+    }
 
     // Handle Cloudflare or other "Just a moment..." interstitials
     let title = await page.title();
@@ -467,12 +481,15 @@ app.post("/api/extract", async (req, res) => {
 
     // If completely empty, just return error
     if (formattedMessages.length === 0) {
+      const isChatGPT = url.includes("chatgpt.com");
       return res.status(422).json({
         error: "PARSING_FAILED",
-        message:
-          "Could not find any chat messages in the provided URL using Puppeteer extraction.",
-        suggestion:
-          "The link might be private, or the platform structure has changed.",
+        message: isChatGPT 
+          ? "ChatGPT's anti-bot system is blocking our cloud servers from accessing this share link."
+          : "Could not find any chat messages in the provided URL using Puppeteer extraction.",
+        suggestion: isChatGPT
+          ? "Please use the 'AI Chat to PDF' physical HTML upload method. Click 'AI CHAT TO PDF' for instructions."
+          : "The link might be private, or the platform structure has changed.",
       });
     }
 

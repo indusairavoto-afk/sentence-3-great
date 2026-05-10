@@ -4,13 +4,14 @@ puppeteer.use(StealthPlugin());
 
 (async () => {
   const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] });
-  const page = await browser.newPage();
-  console.log("Navigating...");
+  
   try {
-    await page.goto("https://chatgpt.com/share/61066cc0-4e35-430c-ab18-809b45fd6df8", { waitUntil: "domcontentloaded", timeout: 45000 });
-    console.log("Navigation successful");
-    await new Promise(r => setTimeout(r, 2000));
-    console.log("Title: " + await page.title());
+    const page2 = await browser.newPage();
+    await page2.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+    await page2.goto("https://chatgpt.com/share/6a008356-6ea8-83e9-85a5-57ccc01d0a51", { waitUntil: "networkidle2", timeout: 45000 });
+    console.log("Screenshot Link Title:", await page2.title());
+    const html = await page2.content();
+    require('fs').writeFileSync('chatgpt-test2.html', html);
   } catch (e) {
     console.error("Error:", e);
   } finally {
