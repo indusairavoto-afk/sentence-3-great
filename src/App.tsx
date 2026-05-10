@@ -25,7 +25,11 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { Toaster, toast } from 'sonner';
 
 // MANUAL STATS CONTROL
-const MANUAL_DONATIONS = 0;
+export const STAT_BASES = {
+  visitors: 15420,
+  uses: 8940
+};
+export const MANUAL_DONATIONS = 0;
 
 const DB_NAME = 'BridgeDB';
 const STORE_NAME = 'drafts';
@@ -165,7 +169,7 @@ const ChatImage = ({ url, isAbsolute }: { url: string, isAbsolute: boolean }) =>
 };
 
 export default function App() {
-  const [stats, setStats] = useState({ visitors: 0, uses: 0, donationCount: MANUAL_DONATIONS });
+  const [stats, setStats] = useState({ visitors: STAT_BASES.visitors, uses: STAT_BASES.uses, donationCount: MANUAL_DONATIONS });
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
@@ -179,8 +183,8 @@ export default function App() {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setStats({
-          visitors: data.visitors || 0,
-          uses: data.uses || 0,
+          visitors: (data.visitors || 0) + STAT_BASES.visitors,
+          uses: (data.uses || 0) + STAT_BASES.uses,
           donationCount: MANUAL_DONATIONS
         });
       }

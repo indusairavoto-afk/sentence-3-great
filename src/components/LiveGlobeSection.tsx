@@ -3,11 +3,12 @@ import { Activity, Globe2, Users, Heart } from 'lucide-react';
 import { db } from '../firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import RotatingEarth from './RotatingEarth';
+import { STAT_BASES, MANUAL_DONATIONS } from '../App';
 
 export function LiveGlobeSection() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [{ width, height }, setSize] = useState({ width: 0, height: 0 });
-  const [stats, setStats] = useState({ visitors: 0, uses: 0, donationCount: 0 });
+  const [stats, setStats] = useState({ visitors: STAT_BASES.visitors, uses: STAT_BASES.uses, donationCount: MANUAL_DONATIONS });
 
   useEffect(() => {
     const handleResize = () => {
@@ -28,9 +29,9 @@ export function LiveGlobeSection() {
       if (docSn.exists()) {
         const data = docSn.data();
         setStats({
-          visitors: data.visitors || 0,
-          uses: data.uses || 0,
-          donationCount: 0
+          visitors: (data.visitors || 0) + STAT_BASES.visitors,
+          uses: (data.uses || 0) + STAT_BASES.uses,
+          donationCount: MANUAL_DONATIONS
         });
       }
     });

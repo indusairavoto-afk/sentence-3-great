@@ -8,7 +8,9 @@ import crypto from "crypto";
 import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 
-puppeteer.use(StealthPlugin());
+const stealth = StealthPlugin();
+stealth.enabledEvasions.delete('iframe.contentWindow');
+puppeteer.use(stealth);
 
 const app = express();
 let debugLogs = [];
