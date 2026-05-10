@@ -17,11 +17,15 @@ import { ApiDocs } from './components/ApiDocs';
 import { AILogoMarquee } from './components/AILogoMarquee';
 import { PdfEditor } from './components/PdfEditor';
 import { vaultDbTools } from './lib/vaultDb';
+
 import { db, incrementGlobalStat, auth, signInWithGoogle, logOut } from './firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
 
 import { Toaster, toast } from 'sonner';
+
+// MANUAL STATS CONTROL
+const MANUAL_DONATIONS = 0;
 
 const DB_NAME = 'BridgeDB';
 const STORE_NAME = 'drafts';
@@ -161,7 +165,7 @@ const ChatImage = ({ url, isAbsolute }: { url: string, isAbsolute: boolean }) =>
 };
 
 export default function App() {
-  const [stats, setStats] = useState({ visitors: 0, uses: 0, donationCount: 0 });
+  const [stats, setStats] = useState({ visitors: 0, uses: 0, donationCount: MANUAL_DONATIONS });
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
@@ -176,8 +180,8 @@ export default function App() {
         const data = docSnap.data();
         setStats({
           visitors: data.visitors || 0,
-          uses: data.visitors || 0,
-          donationCount: data.visitors || 0
+          uses: data.uses || 0,
+          donationCount: MANUAL_DONATIONS
         });
       }
     });
@@ -1018,31 +1022,6 @@ export default function App() {
                   <div className="flex items-center gap-4 flex-wrap">
                     <span className="text-[9px] uppercase tracking-[0.2em] text-zinc-500 font-mono flex items-center gap-1"><FileText size={10}/> {chatData.messages.length} msgs</span>
                     <div className="flex gap-2 flex-wrap">
-                        <button
-                          onClick={async () => {
-                            if (!chatData) return;
-                            try {
-                              let currentUser = user;
-                              if (!currentUser) {
-                                currentUser = await signInWithGoogle();
-                              }
-                              setVaultSaved(false);
-                              await vaultDbTools.saveItem({
-                                id: chatData.title + '_' + Date.now(),
-                                date: Date.now(),
-                                data: chatData
-                              });
-                              setVaultSaved(true);
-                              setTimeout(() => setVaultSaved(false), 2000);
-                            } catch (error) {
-                              console.error('Failed to save to vault:', error);
-                            }
-                          }}
-                          className="px-3 py-1.5 border border-zinc-200 dark:border-white/10 text-[9px] uppercase tracking-[0.15em] text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-white dark:hover:bg-zinc-800 rounded-lg transition-all flex items-center gap-1.5 shadow-sm font-bold"
-                        >
-                          {vaultSaved ? <CheckCircle2 size={12} /> : <Database size={12} />}
-                          {vaultSaved ? 'Saved to Vault' : 'Save to Vault'}
-                        </button>
                         <button
                           onClick={async () => {
                             try {

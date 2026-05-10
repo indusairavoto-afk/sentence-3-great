@@ -2,21 +2,12 @@ import React from 'react';
 import { motion } from 'motion/react';
 
 const aiModels = [
-  { name: 'ChatGPT', color: 'text-emerald-500' },
-  { name: 'Gemini', color: 'text-blue-500' },
-  { name: 'Claude', color: 'text-orange-500' },
-  { name: 'Llama 3', color: 'text-indigo-500' },
-  { name: 'Mistral', color: 'text-yellow-500' },
-  { name: 'Perplexity', color: 'text-cyan-500' },
-  { name: 'Cohere', color: 'text-violet-500' },
-];
-
-const shapes = [
-  "M12 2L2 22h20L12 2z", // Triangle
-  "M2 12A10 10 0 1 0 22 12A10 10 0 1 0 2 12Z", // Circle
-  "M3 3h18v18H3V3z", // Square
-  "M12 2l8.66 5v10L12 22l-8.66-5V7L12 2z", // Hexagon
-  "M12 2L2 22h20L12 2z" // Back to triangle
+  { name: 'ChatGPT', imgUrl: 'https://res.cloudinary.com/domyd01x9/image/upload/q_auto/f_auto/v1778425627/chatgpt-icon_dnsvgw.webp' },
+  { name: 'Gemini', imgUrl: 'https://res.cloudinary.com/domyd01x9/image/upload/q_auto/f_auto/v1778425667/Google_Gemini_icon_2025.svg_rsefbe.webp' },
+  { name: 'Claude', imgUrl: 'https://res.cloudinary.com/domyd01x9/image/upload/q_auto/f_auto/v1778425650/claude-ai-icon_kp64b4.webp' },
+  { name: 'Perplexity', imgUrl: 'https://res.cloudinary.com/domyd01x9/image/upload/q_auto/f_auto/v1778425477/perplexity-ai-icon_tdawdq.webp' },
+  { name: 'DeepSeek', imgUrl: 'https://res.cloudinary.com/domyd01x9/image/upload/q_auto/f_auto/v1778425429/deepseek-logo-icon_hpuvjw.webp' },
+  { name: 'Grok', imgUrl: 'https://res.cloudinary.com/domyd01x9/image/upload/q_auto/f_auto/v1778426015/Grok-icon.svg_y9wwzw.png' },
 ];
 
 export function AILogoMarquee() {
@@ -39,19 +30,9 @@ export function AILogoMarquee() {
       >
         {duplicatedModels.map((model, i) => (
           <div key={i} className="flex items-center gap-4 shrink-0">
-            <svg width="20" height="20" viewBox="0 0 24 24" className={`fill-current ${model.color}`}>
-              <motion.path
-                animate={{
-                  d: shapes
-                }}
-                transition={{
-                  duration: 10,
-                  repeat: Infinity,
-                  ease: "linear",
-                  delay: (i % aiModels.length) * 0.5
-                }}
-              />
-            </svg>
+            {model.imgUrl && (
+              <img src={model.imgUrl} alt={model.name} className="w-5 h-5 object-contain" referrerPolicy="no-referrer" />
+            )}
             <span className="font-bold tracking-[0.2em] uppercase text-xs md:text-sm text-zinc-500/80 dark:text-zinc-400/80">
               {model.name}
             </span>

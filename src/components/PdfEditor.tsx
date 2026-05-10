@@ -274,9 +274,9 @@ export function PdfEditor({ chatData, onClose }: PdfEditorProps) {
     const opt = {
       margin:       10, // html2pdf margin (we are handling inner padding/margin in CSS)
       filename:     `${pdfName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`,
-      image:        { type: 'jpeg', quality: 0.98 },
+      image:        { type: 'jpeg' as const, quality: 0.98 },
       html2canvas:  { scale: 2, useCORS: true, logging: false },
-      jsPDF:        { unit: 'mm', format: pageSize, orientation: 'portrait' },
+      jsPDF:        { unit: 'mm' as const, format: pageSize, orientation: 'portrait' as const },
       pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
     };
 

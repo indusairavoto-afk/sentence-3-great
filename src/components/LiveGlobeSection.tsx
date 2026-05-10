@@ -29,8 +29,8 @@ export function LiveGlobeSection() {
         const data = docSn.data();
         setStats({
           visitors: data.visitors || 0,
-          uses: data.visitors || 0,
-          donationCount: data.visitors || 0
+          uses: data.uses || 0,
+          donationCount: 0
         });
       }
     });
