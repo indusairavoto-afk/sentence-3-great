@@ -72,10 +72,17 @@ async function extractChatWithImages(
 ) {
   let browser;
   try {
-    browser = await puppeteer.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    });
+    const browserlessToken = process.env.BROWSERLESS_TOKEN || "2UUaQFRvjHXBtgr8fefbc37d4cfbd5740af20de1d8e200498";
+    if (browserlessToken) {
+      browser = await puppeteer.connect({
+        browserWSEndpoint: `wss://chrome.browserless.io?token=${browserlessToken}`
+      });
+    } else {
+      browser = await puppeteer.launch({
+        headless: true,
+        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      });
+    }
     const page = await browser.newPage();
     await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
     await page.setExtraHTTPHeaders({
@@ -84,7 +91,13 @@ async function extractChatWithImages(
     await page.setViewport({ width: 1280, height: 800 });
 
     console.log(`Navigating to ${url}...`);
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto(url, { waitUntil: "networkidle2", timeout: 60000 });
+
+    // Instantly check for deleted chats BEFORE we wait for messages!
+    let bodyTextEarly = await page.evaluate(() => document.body.innerText);
+    if (bodyTextEarly.includes("This shared chat was deleted") || bodyTextEarly.includes("This shared chat was delete")) {
+       throw new Error("CHAT_DELETED");
+    }
 
     try {
       // Wait for React to render the messages, or timeout after 10000ms
@@ -97,6 +110,15 @@ async function extractChatWithImages(
 
     // Handle Cloudflare or other "Just a moment..." interstitials
     let title = await page.title();
+    
+    // Check if the chat was deleted
+    let bodyText = await page.evaluate(() => document.body.innerText);
+    fs.writeFileSync('debug-body.txt', bodyText);
+    console.log("Body text was", bodyText.length, "chars long. Sample:", bodyText.substring(0, 500));
+    if (bodyText.includes("This shared chat was deleted") || bodyText.includes("This shared chat was delete")) {
+       throw new Error("CHAT_DELETED");
+    }
+    
     if (title.toLowerCase().includes("just a moment") || title.toLowerCase().includes("cloudflare")) {
        console.log("Cloudflare detected, waiting for challenge to solve...");
        try {
@@ -495,6 +517,14 @@ app.post("/api/extract", async (req, res) => {
 
     res.json({ title, messages: formattedMessages });
   } catch (error: any) {
+    if (error.message && error.message.includes("CHAT_DELETED")) {
+      return res.status(404).json({
+        error: "CHAT_DELETED",
+        message: "The shared chat you provided has been deleted by its owner.",
+        suggestion: "Please try another valid chat share link."
+      });
+    }
+
     if (error.message && error.message.includes("CLOUDFLARE_BLOCKED")) {
       console.warn("Extraction blocked by Cloudflare for URL:", req.body.url);
       return res.status(403).json({

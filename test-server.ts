@@ -6,7 +6,7 @@ import fetch from "node-fetch";
       const res = await fetch('http://localhost:3000/api/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: "https://chatgpt.com/share/672eb7d8-eb10-800e-ad6d-e9714fe0edc3", extractImages: false })
+        body: JSON.stringify({ url: "https://chatgpt.com/share/67cc6a00-ae60-8005-badf-a2e6f4044fd5", extractImages: false })
       });
       console.log(res.status, await res.text());
     } catch(e) { console.error(e) }
