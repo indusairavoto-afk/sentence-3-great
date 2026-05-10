@@ -15,10 +15,13 @@ import { Contact } from './components/Contact';
 import { Security } from './components/Security';
 import { ApiDocs } from './components/ApiDocs';
 import { AILogoMarquee } from './components/AILogoMarquee';
+import { PdfEditor } from './components/PdfEditor';
 import { vaultDbTools } from './lib/vaultDb';
 import { db, incrementGlobalStat, auth, signInWithGoogle, logOut } from './firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
+
+import { Toaster, toast } from 'sonner';
 
 const DB_NAME = 'BridgeDB';
 const STORE_NAME = 'drafts';
@@ -209,11 +212,13 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ErrorData | null>(null);
   const [chatData, setChatData] = useState<ChatData | null>(null);
+  const [showPdfEditor, setShowPdfEditor] = useState(false);
   const [htmlFileState, setHtmlFileState] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const [vaultSaved, setVaultSaved] = useState(false);
   const [linkStatus, setLinkStatus] = useState<{ step: string; progress: number } | null>(null);
+  const [pendingAction, setPendingAction] = useState<'pdf' | 'bridge'>('bridge');
   const [uploadProgress, setUploadProgress] = useState<{ phase: string; percent: number } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentTab, setCurrentTab] = useState<'converter' | 'vault' | 'about' | 'impact' | 'faq' | 'privacy' | 'terms' | 'contact' | 'security' | 'apidocs'>('converter');
@@ -239,8 +244,9 @@ export default function App() {
     }).catch(console.error);
   }, []);
 
-  const handleExtract = async (e: React.FormEvent | React.MouseEvent, extractImages: boolean = true) => {
+  const handleExtract = async (e: React.FormEvent | React.MouseEvent, action: 'pdf' | 'bridge' = 'bridge', extractImages: boolean = true) => {
     e.preventDefault();
+    setPendingAction(action);
     setError(null);
     
     if (inputMode === 'file' && !htmlFile) {
@@ -344,15 +350,21 @@ export default function App() {
 
       if (!res.ok) {
         setError(res.data as ErrorData);
+        toast.error(`Extraction failed: ${res.data.message || res.data.error || 'Unknown error'}`);
         setUploadProgress(null);
         setLoading(false);
         return;
       }
 
+      toast.success('Successfully extracted chat!');
+
       setUploadProgress({ phase: 'Extraction Complete! Bridging...', percent: 100 });
       
       setTimeout(() => {
         setChatData(res.data);
+        if (action === 'pdf') { // Note: wait, action is available in closure scope? Let's check `handleExtract` args
+          setShowPdfEditor(true);
+        }
         incrementGlobalStat('uses');
         setUploadProgress(null);
         setLoading(false);
@@ -364,6 +376,7 @@ export default function App() {
         message: err.message || 'Failed to process the input.', 
         suggestion: 'Ensure your file or link is correctly formatted and accessible.' 
       });
+      toast.error(`Error: ${err.message || 'Failed to process the input'}`);
       setUploadProgress(null);
       setLoading(false);
     }
@@ -407,7 +420,9 @@ export default function App() {
 
   return (
     <div className={`min-h-screen flex flex-col overflow-x-hidden transition-colors duration-300 ${theme === 'dark' ? 'dark bg-[#0a0a0a] text-zinc-100 selection:bg-zinc-800 selection:text-white relative' : 'bg-white text-zinc-900 selection:bg-zinc-200 selection:text-black relative'}`}>
+      <Toaster position="bottom-right" richColors theme={theme} />
       <DonationModal isOpen={showDonationModal} onClose={() => setShowDonationModal(false)} />
+      {showPdfEditor && chatData && <PdfEditor chatData={chatData} onClose={() => setShowPdfEditor(false)} />}
 
       {/* Background gradients / grid */}
       <div className="absolute inset-0 z-0 pointer-events-none opacity-50 dark:opacity-[0.15]">
@@ -481,7 +496,7 @@ export default function App() {
           <>
             <div className="w-full max-w-2xl text-center mb-0 relative">
               <h1 className="text-4xl md:text-6xl font-extrabold tracking-tighter mb-6 bg-clip-text text-transparent bg-gradient-to-b from-zinc-900 to-zinc-500 dark:from-white dark:to-zinc-500">Seamless AI Continuity</h1>
-              <p className="text-zinc-600 dark:text-zinc-400 text-sm md:text-base tracking-wide max-w-lg mx-auto leading-relaxed mb-12">Upload an exported HTML chat or paste a Share Link to bridge the gap between different LLMs flawlessly.</p>
+              <p className="text-zinc-600 dark:text-zinc-400 text-sm md:text-base tracking-wide max-w-lg mx-auto leading-relaxed mb-2">Upload an exported HTML chat or paste a Share Link to bridge the gap between different LLMs flawlessly.</p>
             </div>
 
             <AILogoMarquee />
@@ -494,7 +509,7 @@ export default function App() {
               initial={{ opacity: 0, y: 20, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, scale: 0.98 }}
-              className="w-full max-w-3xl mt-8"
+              className="w-full max-w-3xl mt-4"
             >
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-4 gap-4">
                 <h3 className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-bold bg-zinc-100 dark:bg-zinc-900 px-3 py-1 rounded inline-flex">Bridged Conversion</h3>
@@ -558,10 +573,10 @@ export default function App() {
               exit={{ opacity: 0, scale: 0.98 }}
               className="w-full flex flex-col items-center group/container"
             >
-              <div className="w-full max-w-2xl border border-zinc-200/50 dark:border-transparent p-[1.5px] bg-zinc-200/50 dark:bg-zinc-800/50 mb-12 rounded-2xl shadow-2xl overflow-hidden relative">
+              <div className="w-full max-w-2xl border border-zinc-200/50 dark:border-transparent p-[1.5px] bg-zinc-200/50 dark:bg-zinc-800/50 mb-12 rounded-2xl shadow-2xl overflow-hidden relative isolate transform-gpu">
                 
                 {/* Moving light border effect */}
-                <div className="absolute inset-0 z-0">
+                <div className="absolute inset-0 z-0 overflow-hidden rounded-2xl">
                   <div className="absolute inset-[-150%] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300%] h-[300%] animate-[spin_5s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#00000000_0%,#00000000_50%,#18181b_100%)] dark:bg-[conic-gradient(from_90deg_at_50%_50%,#00000000_0%,#00000000_50%,#ffffff_100%)] opacity-30 group-hover/container:opacity-100 transition-opacity duration-700"></div>
                 </div>
 
@@ -701,39 +716,25 @@ export default function App() {
                     </div>
                   )}
                     
-                    {inputMode === 'link' ? (
-                      <div className="flex gap-4">
-                        <button
-                          type="button"
-                          onClick={(e) => handleExtract(e, false)}
-                          disabled={loading || !shareLink || shareLink.toLowerCase().includes('grok.com')}
-                          className="w-full bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700 px-6 py-5 rounded-xl font-bold text-xs uppercase tracking-[0.2em] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex flex-col items-center justify-center gap-1 border border-zinc-200 dark:border-white/10 group relative overflow-hidden"
-                        >
-                          <span className="relative z-10">{uploadProgress ? `${uploadProgress.percent}%` : loading ? 'Bridging...' : 'Only Text'}</span>
-                          {!loading && !uploadProgress && <span className="text-[9px] font-normal opacity-70 normal-case tracking-normal">Speedy Mode</span>}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => handleExtract(e, true)}
-                          disabled={loading || !shareLink || shareLink.toLowerCase().includes('grok.com')}
-                          className="w-full bg-zinc-900 dark:bg-white text-white dark:text-black hover:bg-zinc-800 dark:hover:bg-zinc-100 px-6 py-5 rounded-xl font-bold text-xs uppercase tracking-[0.2em] shadow-2xl hover:shadow-[0_0_40px_rgba(0,0,0,0.3)] dark:hover:shadow-[0_0_40px_rgba(255,255,255,0.3)] disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-1 transition-all duration-300 flex flex-col items-center justify-center gap-1 border border-transparent dark:border-white/10 group relative overflow-hidden"
-                        >
-                          <div className="absolute inset-0 bg-white/20 dark:bg-black/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
-                          <span className="relative z-10">{uploadProgress ? `${uploadProgress.percent}%` : loading ? 'Bridging...' : 'With Img'}</span>
-                          {!loading && !uploadProgress && <span className="text-[9px] font-normal opacity-70 dark:opacity-60 normal-case tracking-normal relative z-10">Includes images</span>}
-                        </button>
-                      </div>
-                    ) : (
+                    <div className="flex gap-4">
                       <button
-                        type="submit"
-                        disabled={loading || !htmlFile}
-                        className="w-full bg-zinc-900 dark:bg-white text-white dark:text-black hover:bg-zinc-800 dark:hover:bg-zinc-100 px-10 py-5 rounded-xl font-bold text-xs uppercase tracking-[0.2em] shadow-2xl hover:shadow-[0_0_40px_rgba(0,0,0,0.3)] dark:hover:shadow-[0_0_40px_rgba(255,255,255,0.3)] disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-1 transition-all duration-300 flex items-center justify-center gap-3 border border-transparent dark:border-white/10 group relative overflow-hidden"
+                        type="button"
+                        onClick={(e) => handleExtract(e, 'pdf', false)}
+                        disabled={inputMode === 'link' ? (loading || !shareLink || shareLink.toLowerCase().includes('grok.com')) : (loading || !htmlFile)}
+                        className="w-full bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700 px-6 py-5 rounded-xl font-bold text-xs uppercase tracking-[0.2em] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex flex-col items-center justify-center gap-1 border border-zinc-200 dark:border-white/10 group relative overflow-hidden"
+                      >
+                        <span className="relative z-10">{uploadProgress ? `${uploadProgress.percent}%` : loading ? 'Bridging...' : 'AI Chat to PDF'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => handleExtract(e, 'bridge', true)}
+                        disabled={inputMode === 'link' ? (loading || !shareLink || shareLink.toLowerCase().includes('grok.com')) : (loading || !htmlFile)}
+                        className="w-full bg-zinc-900 dark:bg-white text-white dark:text-black hover:bg-zinc-800 dark:hover:bg-zinc-100 px-6 py-5 rounded-xl font-bold text-xs uppercase tracking-[0.2em] shadow-2xl hover:shadow-[0_0_40px_rgba(0,0,0,0.3)] dark:hover:shadow-[0_0_40px_rgba(255,255,255,0.3)] disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-1 transition-all duration-300 flex flex-col items-center justify-center gap-1 border border-transparent dark:border-white/10 group relative overflow-hidden"
                       >
                         <div className="absolute inset-0 bg-white/20 dark:bg-black/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
-                        <span className="relative z-10">{uploadProgress ? `${uploadProgress.percent}%` : loading ? 'Bridging...' : 'Bridge'}</span>
-                        {!loading && !uploadProgress && <ArrowRight size={14} className="relative z-10 group-hover:translate-x-1 transition-transform" />}
+                        <span className="relative z-10">{uploadProgress ? `${uploadProgress.percent}%` : loading ? 'Bridging...' : 'Continue Bridge'}</span>
                       </button>
-                    )}
+                    </div>
 
                   
 
@@ -1091,6 +1092,12 @@ export default function App() {
                           <FileText size={12} className="text-zinc-400" /> MD
                         </button>
                         <button
+                          onClick={() => setShowPdfEditor(true)}
+                          className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-[9px] uppercase tracking-[0.15em] font-bold transition-all flex items-center gap-1.5 shadow-sm hover:bg-red-600"
+                        >
+                          <Download size={12} className="text-white" /> Edit PDF
+                        </button>
+                        <button
                           onClick={() => downloadFile(JSON.stringify(chatData.messages, null, 2), 'chat-export.json', 'application/json')}
                           className="px-3 py-1.5 border border-zinc-200 dark:border-white/10 text-[9px] uppercase tracking-[0.15em] text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-white dark:hover:bg-zinc-800 rounded-lg transition-all flex items-center gap-1.5 shadow-sm font-bold"
                         >
@@ -1259,6 +1266,11 @@ export default function App() {
               <div className="flex flex-col items-center text-center w-full">
                 <span className="text-zinc-900 dark:text-white font-bold text-lg mb-2 tracking-tight">Processing...</span>
                 <span className="text-zinc-500 dark:text-zinc-400 font-mono text-[10px] uppercase tracking-widest">{uploadProgress?.phase || 'Initializing...'}</span>
+                {inputMode === 'link' && (!uploadProgress || uploadProgress.percent < 50) && (
+                  <span className="text-zinc-400 dark:text-zinc-500 text-xs mt-3 bg-zinc-50 dark:bg-zinc-800/50 p-2 rounded-lg border border-zinc-100 dark:border-zinc-800">
+                    Booting headless browser & bypassing security. This takes 5–15 seconds...
+                  </span>
+                )}
               </div>
               
               <div className="w-full h-1.5 bg-zinc-100 dark:bg-zinc-950 overflow-hidden rounded-full border border-zinc-200 dark:border-zinc-800">

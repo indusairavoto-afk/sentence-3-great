@@ -23,7 +23,7 @@ export function AILogoMarquee() {
   const duplicatedModels = [...aiModels, ...aiModels, ...aiModels, ...aiModels];
 
   return (
-    <div className="w-full max-w-5xl mx-auto overflow-hidden relative mb-16 -mt-4 opacity-80 pointer-events-none">
+    <div className="w-full max-w-5xl mx-auto overflow-hidden relative mb-2 mt-0 opacity-80 pointer-events-none">
       {/* Fade edges */}
       <div className="absolute inset-y-0 left-0 w-24 md:w-48 bg-gradient-to-r from-zinc-50 dark:from-[#0a0a0a] to-transparent z-10"></div>
       <div className="absolute inset-y-0 right-0 w-24 md:w-48 bg-gradient-to-l from-zinc-50 dark:from-[#0a0a0a] to-transparent z-10"></div>
