@@ -74,9 +74,17 @@ async function extractChatWithImages(
   try {
     const browserlessToken = process.env.BROWSERLESS_TOKEN || "2UUaQFRvjHXBtgr8fefbc37d4cfbd5740af20de1d8e200498";
     if (browserlessToken) {
-      browser = await puppeteer.connect({
-        browserWSEndpoint: `wss://chrome.browserless.io?token=${browserlessToken}`
-      });
+      try {
+        browser = await puppeteer.connect({
+          browserWSEndpoint: `wss://chrome.browserless.io?token=${browserlessToken}`
+        });
+      } catch (e) {
+        console.warn("Could not connect to browserless (possibly 401 or network error), falling back to local puppeteer.", e);
+        browser = await puppeteer.launch({
+          headless: true,
+          args: ["--no-sandbox", "--disable-setuid-sandbox"],
+        });
+      }
     } else {
       browser = await puppeteer.launch({
         headless: true,
