@@ -127,6 +127,18 @@ async function extractChatWithImages(
       });
     }
     const page = await browser.newPage();
+
+    // Block unnecessary resources to save memory and speed up
+    await page.setRequestInterception(true);
+    page.on('request', (req) => {
+      const resourceType = req.resourceType();
+      if (['stylesheet', 'font', 'media'].includes(resourceType)) {
+        req.abort();
+      } else {
+        req.continue();
+      }
+    });
+
     await page.setUserAgent(
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     );
@@ -136,7 +148,7 @@ async function extractChatWithImages(
     await page.setViewport({ width: 1280, height: 800 });
 
     console.log(`Navigating to ${url}...`);
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 25000 });
 
     // Instantly check for deleted chats BEFORE we wait for messages!
     let bodyTextEarly = await page.evaluate(() => document.body.innerText);
@@ -190,7 +202,7 @@ async function extractChatWithImages(
           () =>
             !document.title.toLowerCase().includes("just a moment") &&
             !document.title.toLowerCase().includes("cloudflare"),
-          { timeout: 30000 },
+          { timeout: 8000 },
         );
       } catch (e) {
         console.log("Timeout waiting for Cloudflare challenge to complete.");
@@ -219,30 +231,30 @@ async function extractChatWithImages(
     try {
       await page.waitForSelector(
         '.markdown, [data-message-author-role], .font-claude-message, .font-user-message, .message, .chat-message, [data-testid="message"], article, .prose, .ProseMirror, user-query, model-response, .model-response, .user-query, response-container, message-content, .message-row, .message-bubble',
-        { timeout: 30000 },
+        { timeout: 8000 },
       );
 
       // Auto-scroll to load lazy images
       await page.evaluate(async () => {
         await new Promise<void>((resolve) => {
           let totalHeight = 0;
-          const distance = 300;
+          const distance = 800;
           let iterations = 0;
           const timer = setInterval(() => {
             const scrollHeight = document.documentElement.scrollHeight;
             window.scrollBy(0, distance);
             totalHeight += distance;
             iterations++;
-            // Maximum of 150 scrolls (about 15 seconds)
-            if (totalHeight >= scrollHeight || iterations > 150) {
+            // Maximum of 40 scrolls (about 2 seconds)
+            if (totalHeight >= scrollHeight || iterations > 40) {
               clearInterval(timer);
               resolve();
             }
-          }, 100);
+          }, 50);
         });
       });
       // Wait a moment for images to fetch
-      await new Promise((r) => setTimeout(r, 2000));
+      await new Promise((r) => setTimeout(r, 600));
     } catch (timeoutErr) {
       console.log(
         `Timeout waiting for standard selectors. The page might be protected or have a different structure.`,
@@ -612,7 +624,15 @@ app.post("/api/extract", async (req, res) => {
       `Extracting from URL via Puppeteer: ${url} (extractImages: ${extractImages})`,
     );
 
-    const { title, messages } = await extractChatWithImages(url, extractImages);
+    // Enforce an absolute overarching timeout of 45 seconds to prevent 502/OOM proxy drop
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("EXTRACTION_TIMEOUT")), 45000)
+    );
+
+    const { title, messages } = (await Promise.race([
+      extractChatWithImages(url, extractImages),
+      timeoutPromise
+    ])) as { title: string, messages: any[] };
 
     // Format them for the frontend
     const now = Date.now();
