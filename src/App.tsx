@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Lock, Image as ImageIcon, ArrowRight, Download, Copy, Link as LinkIcon, Trash2, FileJson, FileText, CheckCircle2, Loader2, Sun, Moon, Search, Database, ExternalLink, Heart, AlertCircle, Users, Activity, LogOut } from 'lucide-react';
-import CountUp from 'react-countup';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -316,6 +315,8 @@ export default function App() {
         xhr.open('POST', endpoint);
         xhr.setRequestHeader('Content-Type', 'application/json');
         
+        let progressInterval: NodeJS.Timeout;
+
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable && inputMode === 'file') {
             const uploadPercent = Math.round((e.loaded / e.total) * 45);
@@ -323,88 +324,32 @@ export default function App() {
           }
         };
         
-        let lastReadIndex = 0;
-        
-        xhr.onprogress = () => {
-          if (!xhr.responseText) return;
-          const lines = xhr.responseText.split('\n').filter(l => l.trim().length > 0);
-          
-          for (let i = lines.length - 1; i >= 0; i--) {
-            try {
-              const parsed = JSON.parse(lines[i]);
-              if (parsed.type === 'progress') {
-                setUploadProgress((prev: any) => {
-                    const extracted = parsed.imagesExtracted || 0;
-                    const total = parsed.totalImages || 0;
-                    const calculatedPercent = total > 0 ? 70 + Math.round((extracted / total) * 20) : 70;
-                    return {
-                        ...prev,
-                        phase: parsed.message || (prev ? prev.phase : 'Processing...'),
-                        messagesOut: parsed.messagesFound != null ? parsed.messagesFound : prev?.messagesOut,
-                        imagesOut: parsed.imagesExtracted != null ? parsed.imagesExtracted : prev?.imagesOut,
-                        percent: calculatedPercent
-                    };
-                });
-                break;
-              }
-            } catch(e) {}
-          }
+        xhr.upload.onload = () => {
+          setUploadProgress({ phase: inputMode === 'link' ? 'Server Analyzing Link...' : 'Server Processing HTML...', percent: 70 });
+          let simulatedProgress = 70;
+          progressInterval = setInterval(() => {
+            simulatedProgress += (Math.random() * 2);
+            if (simulatedProgress < 90) {
+              const phases = ['Parsing DOM Structure...', 'Extracting Chat Nodes...', 'Formatting Messages...'];
+              const currentPhase = phases[Math.floor((simulatedProgress - 70) / 7)] || phases[2];
+              setUploadProgress({ phase: currentPhase, percent: Math.round(simulatedProgress) });
+            }
+          }, 150);
         };
         
         xhr.onload = () => {
-          if (!xhr.responseText) {
-             if (xhr.status >= 400) {
-               resolve({ ok: false, data: { error: 'SERVER_ERROR', message: `Server error ${xhr.status}` }});
-             } else {
-               reject(new Error('Empty response from server'));
-             }
-             return;
-          }
-          
-          const lines = xhr.responseText.split('\n').filter(l => l.trim().length > 0);
-          let parsedData = null;
-          let hasError = false;
-          let errorData = null;
-          
-          for (const line of lines) {
-             try {
-               const parsed = JSON.parse(line);
-               if (parsed.type === 'complete') {
-                 parsedData = parsed.data;
-               } else if (parsed.type === 'error' || parsed.error) {
-                 hasError = true;
-                 errorData = parsed;
-               }
-             } catch(e) {}
-          }
-          
+          if (progressInterval) clearInterval(progressInterval);
           setUploadProgress({ phase: 'Finalizing Extraction...', percent: 95 });
-          
-          // Fallback if not chunked format
-          if (!parsedData && !hasError) {
-             try {
-               const parsed = JSON.parse(xhr.responseText);
-               if (parsed.messages || parsed.title) {
-                 parsedData = parsed;
-               } else if (parsed.error) {
-                 hasError = true;
-                 errorData = parsed;
-               }
-             } catch(e) {}
-          }
-          
-          if (hasError) {
-             resolve({ ok: false, data: errorData });
-          } else if (parsedData) {
-             resolve({ ok: true, data: parsedData });
-          } else if (xhr.status >= 400) {
-             resolve({ ok: false, data: { error: 'SERVER_ERROR', message: `Server error ${xhr.status}. ${xhr.responseText.substring(0, 100)}` }});
-          } else {
-             reject(new Error('Incomplete response stream'));
+          try {
+            const data = JSON.parse(xhr.responseText);
+            resolve({ ok: xhr.status >= 200 && xhr.status < 300, data });
+          } catch {
+            reject(new Error('Server returned an invalid response format.'));
           }
         };
         
         xhr.onerror = () => {
+          if (progressInterval) clearInterval(progressInterval);
           reject(new Error('Network error during transmission.'));
         };
         
@@ -606,7 +551,7 @@ export default function App() {
                     <span>Signal Strength</span>
                     <span className="text-zinc-900 dark:text-white font-bold">{uploadProgress?.percent || 0}%</span>
                   </div>
-                  <div className="h-1.5 w-full bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden shadow-inner relative mb-4">
+                  <div className="h-1.5 w-full bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden shadow-inner relative">
                     <motion.div
                       className="absolute top-0 bottom-0 left-0 bg-zinc-900 dark:bg-zinc-100 rounded-full"
                       initial={{ width: 0 }}
@@ -614,22 +559,6 @@ export default function App() {
                       transition={{ ease: "easeOut", duration: 0.3 }}
                     />
                   </div>
-                  <AnimatePresence>
-                    {(uploadProgress?.messagesOut !== undefined || uploadProgress?.imagesOut !== undefined) && (
-                      <motion.div 
-                        initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
-                        className="flex items-center justify-center gap-4 text-xs font-mono text-zinc-500"
-                      >
-                        {uploadProgress.messagesOut !== undefined && <span>{uploadProgress.messagesOut} <span className="text-zinc-400">msgs</span></span>}
-                        {(uploadProgress.imagesOut !== undefined && uploadProgress.imagesOut > 0) && (
-                           <>
-                             <span className="w-1 h-1 rounded-full bg-zinc-300 dark:bg-zinc-700"></span>
-                             <span>{uploadProgress.imagesOut} <span className="text-zinc-400">imgs</span></span>
-                           </>
-                        )}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
                 </div>
               </div>
             </motion.div>
@@ -860,21 +789,21 @@ export default function App() {
                     <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-[10px] uppercase tracking-[0.2em] font-bold">
                       <Users size={16} className="text-yellow-500 dark:text-yellow-400" /> Visitors
                     </div>
-                    <div className="text-3xl font-extrabold font-mono text-zinc-900 dark:text-white tracking-tight"><CountUp end={stats.visitors} preserveValue duration={2} separator="," /></div>
+                    <div className="text-3xl font-extrabold font-mono text-zinc-900 dark:text-white tracking-tight">{stats.visitors.toLocaleString()}</div>
                   </div>
                   <div className="w-12 h-px sm:w-px sm:h-12 bg-zinc-200 dark:bg-zinc-800"></div>
                   <div className="flex flex-col items-center gap-2">
                     <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-[10px] uppercase tracking-[0.2em] font-bold">
                       <Activity size={16} className="text-green-500 dark:text-green-400" /> Uses
                     </div>
-                    <div className="text-3xl font-extrabold font-mono text-zinc-900 dark:text-white tracking-tight"><CountUp end={stats.uses} preserveValue duration={2} separator="," /></div>
+                    <div className="text-3xl font-extrabold font-mono text-zinc-900 dark:text-white tracking-tight">{stats.uses.toLocaleString()}</div>
                   </div>
                   <div className="w-12 h-px sm:w-px sm:h-12 bg-zinc-200 dark:bg-zinc-800"></div>
                   <div className="flex flex-col items-center gap-2">
                     <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-[10px] uppercase tracking-[0.2em] font-bold">
                       <Heart size={16} className="text-rose-500 dark:text-rose-400" /> Support
                     </div>
-                    <div className="text-3xl font-extrabold font-mono text-zinc-900 dark:text-white tracking-tight"><CountUp end={stats.donationCount} preserveValue duration={2} separator="," /></div>
+                    <div className="text-3xl font-extrabold font-mono text-zinc-900 dark:text-white tracking-tight">{stats.donationCount.toLocaleString()}</div>
                   </div>
                 </div>
               </div>

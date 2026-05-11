@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Activity, Globe2, Users, Heart } from 'lucide-react';
-import CountUp from 'react-countup';
 import { db } from '../firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import RotatingEarth from './RotatingEarth';
@@ -74,7 +73,7 @@ export function LiveGlobeSection() {
               <span className="text-xs font-semibold uppercase tracking-wider">Total Visitors</span>
             </div>
             <div className="text-3xl font-mono font-bold text-zinc-900 dark:text-white">
-              <CountUp end={stats.visitors} preserveValue duration={2} separator="," />
+              {stats.visitors.toLocaleString()}
             </div>
             <p className="text-sm text-zinc-400 mt-2">All time platform pageviews</p>
           </div>
@@ -85,7 +84,7 @@ export function LiveGlobeSection() {
               <span className="text-xs font-semibold uppercase tracking-wider">Total USES</span>
             </div>
             <div className="text-3xl font-mono font-bold text-zinc-900 dark:text-white">
-               <CountUp end={stats.uses} preserveValue duration={2} separator="," />
+               {stats.uses.toLocaleString()}
             </div>
             <p className="text-sm text-zinc-400 mt-2">Successful bridge interactions</p>
           </div>
@@ -96,7 +95,7 @@ export function LiveGlobeSection() {
               <span className="text-xs font-semibold uppercase tracking-wider">Donations</span>
             </div>
             <div className="text-3xl font-mono font-bold text-zinc-900 dark:text-white">
-               <CountUp end={stats.donationCount} preserveValue duration={2} separator="," />
+               {stats.donationCount.toLocaleString()}
             </div>
             <p className="text-sm text-zinc-400 mt-2">Generous donations received</p>
           </div>

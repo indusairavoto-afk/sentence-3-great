@@ -280,18 +280,9 @@ export function PdfEditor({ chatData, onClose }: PdfEditorProps) {
     };
 
     const downloadPdfPromise = async () => {
-      const html2canvas = (await import('html2canvas')).default;
-      const jsPDF = (await import('jspdf')).jsPDF;
-      
-      const canvas = await html2canvas(element, { scale: 2, useCORS: true, logging: false });
-      const imgData = canvas.toDataURL('image/jpeg', 0.98);
-      
-      const pdf = new jsPDF({ unit: 'mm', format: pageSize, orientation: 'portrait' });
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      
-      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`${pdfName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`);
+      // @ts-ignore
+      const html2pdf = (await import('html2pdf.js')).default;
+      await html2pdf().from(element).set(opt).save();
     };
 
     toast.promise(downloadPdfPromise(), {
