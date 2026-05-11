@@ -255,7 +255,7 @@ async function extractChatWithImages(
       let topLevelElements = elements.filter((el) => {
         if (
           el.closest(
-            'nav, aside, [class*="sidebar"]:not([class*="threadScrollVars"]), [class*="menu"], header, .drawer, .drawer-content',
+            'nav, aside, [class*="sidebar"]:not([class*="threadScrollVars"]), [class*="menu"], header, .drawer, .drawer-content, #onetrust-consent-sdk, [class*="onetrust"], [id*="onetrust"], [class*="cookie"], [id*="cookie"]',
           )
         )
           return false;
@@ -405,7 +405,7 @@ async function extractChatWithImages(
               const clone = el.cloneNode(true) as HTMLElement;
               clone
                 .querySelectorAll(
-                  'script, style, svg, button, nav, header, footer, [aria-hidden="true"], .sr-only, .visually-hidden, .cdk-visually-hidden',
+                  'script, style, svg, button, nav, header, footer, [aria-hidden="true"], .sr-only, .visually-hidden, .cdk-visually-hidden, #onetrust-consent-sdk, [class*="onetrust"], [id*="onetrust"], [class*="cookie-banner"]',
                 )
                 .forEach((n) => n.remove());
               return clone.innerHTML;
@@ -414,7 +414,7 @@ async function extractChatWithImages(
               const clone = el.cloneNode(true) as HTMLElement;
               clone
                 .querySelectorAll(
-                  'script, style, svg, button, nav, header, footer, [aria-hidden="true"], .sr-only, .visually-hidden, .cdk-visually-hidden',
+                  'script, style, svg, button, nav, header, footer, [aria-hidden="true"], .sr-only, .visually-hidden, .cdk-visually-hidden, #onetrust-consent-sdk, [class*="onetrust"], [id*="onetrust"], [class*="cookie-banner"]',
                 )
                 .forEach((n) => n.remove());
               let t = clone.innerText || clone.textContent || "";
@@ -1148,7 +1148,7 @@ function extractMessagesFromHtml(html: string) {
     messageNodes.each((_, el) => {
       if (
         $(el).closest(
-          'nav, aside, [class*="sidebar"]:not([class*="threadScrollVars"]), [class*="menu"], header, .drawer, .drawer-content',
+          'nav, aside, [class*="sidebar"]:not([class*="threadScrollVars"]), [class*="menu"], header, .drawer, .drawer-content, #onetrust-consent-sdk, [class*="onetrust"], [id*="onetrust"], [class*="cookie"], [id*="cookie"]',
         ).length > 0
       )
         return;
@@ -1293,7 +1293,7 @@ function extractMessagesFromHtml(html: string) {
         const $clone = $el.clone();
         $clone
           .find(
-            'script, style, svg, noscript, nav, header, footer, button, [aria-hidden="true"], .sr-only, .visually-hidden, .cdk-visually-hidden',
+            'script, style, svg, noscript, nav, header, footer, button, [aria-hidden="true"], .sr-only, .visually-hidden, .cdk-visually-hidden, #onetrust-consent-sdk, [class*="onetrust"], [id*="onetrust"], [class*="cookie-banner"]',
           )
           .remove();
         let content = "";
