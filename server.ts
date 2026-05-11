@@ -21,15 +21,18 @@ stealth.enabledEvasions.delete("iframe.contentWindow");
 puppeteer.use(stealth);
 
 const app = express();
-let debugLogs = [];
+const MAX_DEBUG_LOGS = 500;
+let debugLogs: string[] = [];
 const origLog = console.log;
 console.log = function (...args) {
   debugLogs.push(args.join(" "));
+  if (debugLogs.length > MAX_DEBUG_LOGS) debugLogs.shift();
   origLog(...args);
 };
 const origErr = console.error;
 console.error = function (...args) {
   debugLogs.push("ERR: " + args.join(" "));
+  if (debugLogs.length > MAX_DEBUG_LOGS) debugLogs.shift();
   origErr(...args);
 };
 app.get("/api/debug-logs", (req, res) => res.json(debugLogs));
@@ -43,6 +46,26 @@ if (!fs.existsSync(storageDir)) {
   fs.mkdirSync(storageDir, { recursive: true });
 }
 app.use("/images", express.static(storageDir));
+
+// Clean up images older than 1 hour periodically to prevent memory/disk bloat
+setInterval(() => {
+  try {
+    const now = Date.now();
+    const files = fs.readdirSync(storageDir);
+    let deleted = 0;
+    files.forEach((file) => {
+      const filePath = path.join(storageDir, file);
+      const stat = fs.statSync(filePath);
+      if (now - stat.mtimeMs > 60 * 60 * 1000) { // 1 hour
+        fs.unlinkSync(filePath);
+        deleted++;
+      }
+    });
+    if (deleted > 0) console.log(`Cleaned up ${deleted} old images from storage`);
+  } catch (err) {
+    console.error("Failed to clean up old images:", err);
+  }
+}, 30 * 60 * 1000); // Check every 30 minutes
 
 // Generates a public text link readable by external AI bots (like Claude)
 app.post("/api/public-bridge", async (req, res) => {
@@ -110,7 +133,10 @@ async function extractChatWithImages(
             "--disable-setuid-sandbox",
             "--disable-dev-shm-usage",
             "--disable-gpu",
-            "--no-zygote"
+            "--no-zygote",
+            "--js-flags=--max-old-space-size=256",
+            "--disable-site-isolation-trials",
+            "--disable-accelerated-2d-canvas"
           ],
         });
       }
@@ -122,7 +148,10 @@ async function extractChatWithImages(
           "--disable-setuid-sandbox",
           "--disable-dev-shm-usage",
           "--disable-gpu",
-          "--no-zygote"
+          "--no-zygote",
+          "--js-flags=--max-old-space-size=256",
+          "--disable-site-isolation-trials",
+          "--disable-accelerated-2d-canvas"
         ],
       });
     }
