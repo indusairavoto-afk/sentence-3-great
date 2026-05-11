@@ -135,14 +135,17 @@ export default function RotatingEarth({ width = 800, height = 600, className = "
       const currentScale = projection.scale()
       const scaleFactor = currentScale / radius
 
+      const isDark = canvas.closest('.dark') !== null;
+      const strokeColor = isDark ? "#ffffff" : "#000000";
+
       // Draw ocean (globe background)
       context.beginPath()
       context.arc(containerWidth / 2, containerHeight / 2, currentScale, 0, 2 * Math.PI)
-      context.fillStyle = "rgba(0, 0, 0, 0)" // "#000000" -> transparent maybe? Let's keep it transparent to see the background or just dark
+      context.fillStyle = "rgba(0, 0, 0, 0)" 
       context.fill()
-      context.strokeStyle = "#ffffff"
+      context.strokeStyle = strokeColor
       context.lineWidth = 1 * scaleFactor
-      context.globalAlpha = 0.1
+      context.globalAlpha = isDark ? 0.1 : 0.2
       context.stroke()
       context.globalAlpha = 1
 
@@ -151,9 +154,9 @@ export default function RotatingEarth({ width = 800, height = 600, className = "
         const graticule = d3.geoGraticule()
         context.beginPath()
         path(graticule())
-        context.strokeStyle = "#ffffff"
+        context.strokeStyle = strokeColor
         context.lineWidth = 1 * scaleFactor
-        context.globalAlpha = 0.05
+        context.globalAlpha = isDark ? 0.05 : 0.1
         context.stroke()
         context.globalAlpha = 1
 
@@ -162,9 +165,9 @@ export default function RotatingEarth({ width = 800, height = 600, className = "
         landFeatures.features.forEach((feature: any) => {
           path(feature)
         })
-        context.strokeStyle = "#ffffff"
+        context.strokeStyle = strokeColor
         context.lineWidth = 1 * scaleFactor
-        context.globalAlpha = 0.2
+        context.globalAlpha = isDark ? 0.2 : 0.4
         context.stroke()
         context.globalAlpha = 1
 
@@ -194,7 +197,7 @@ export default function RotatingEarth({ width = 800, height = 600, className = "
         setIsLoading(true)
 
         const response = await fetch(
-          "https://raw.githubusercontent.com/martynafford/natural-earth-geojson/refs/heads/master/110m/physical/ne_110m_land.json",
+          "/world.geo.json",
         )
         if (!response.ok) throw new Error("Failed to load land data")
 
@@ -213,6 +216,7 @@ export default function RotatingEarth({ width = 800, height = 600, className = "
         render()
         setIsLoading(false)
       } catch (err) {
+        console.error("Earth error:", err)
         setError("Failed to load land map data")
         setIsLoading(false)
       }

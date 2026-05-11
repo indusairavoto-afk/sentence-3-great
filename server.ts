@@ -83,6 +83,7 @@ app.post("/api/public-bridge", async (req, res) => {
 async function extractChatWithImages(
   url: string,
   extractImages: boolean = true,
+  onProgress?: (progressInfo: { messagesFound?: number, imagesExtracted?: number, message: string }) => void
 ) {
   let browser;
   try {
@@ -489,8 +490,18 @@ async function extractChatWithImages(
       };
     }
 
+    if (onProgress) {
+      const totalImages = messagesData.reduce((acc, msg) => acc + msg.imagesUrls.length, 0);
+      onProgress({
+        messagesFound: messagesData.length,
+        imagesExtracted: 0,
+        message: `Found ${messagesData.length} messages and ${totalImages} images...`
+      });
+    }
+
     // Download images and replace with local paths
     const messages = [];
+    let imagesExtractedCount = 0;
     for (const msg of messagesData) {
       const localImages = [];
       if (extractImages) {
@@ -538,6 +549,15 @@ async function extractChatWithImages(
               }
             } else {
               localImages.push(imgUrl);
+            }
+            
+            imagesExtractedCount++;
+            if (onProgress) {
+              onProgress({
+                messagesFound: messagesData.length,
+                imagesExtracted: imagesExtractedCount,
+                message: `Downloading images... (${imagesExtractedCount})`
+              });
             }
           } catch (err) {
             console.error(`Failed to download ${imgUrl}:`, err);
@@ -597,8 +617,15 @@ app.post("/api/extract", async (req, res) => {
     console.log(
       `Extracting from URL via Puppeteer: ${url} (extractImages: ${extractImages})`,
     );
+    
+    res.setHeader('Content-Type', 'application/x-ndjson');
+    res.setHeader('Transfer-Encoding', 'chunked');
+    
+    const onProgress = (info: any) => {
+      res.write(JSON.stringify({ type: 'progress', ...info }) + "\n");
+    };
 
-    const { title, messages } = await extractChatWithImages(url, extractImages);
+    const { title, messages } = await extractChatWithImages(url, extractImages, onProgress);
 
     // Format them for the frontend
     const now = Date.now();
@@ -614,7 +641,9 @@ app.post("/api/extract", async (req, res) => {
     // If completely empty, just return error
     if (formattedMessages.length === 0) {
       const isChatGPT = url.includes("chatgpt.com");
-      return res.status(422).json({
+      res.write(JSON.stringify({
+        type: 'error',
+        status: 422,
         error: "PARSING_FAILED",
         message: isChatGPT
           ? "ChatGPT's anti-bot system is blocking our cloud servers from accessing this share link."
@@ -622,28 +651,36 @@ app.post("/api/extract", async (req, res) => {
         suggestion: isChatGPT
           ? "Please use the 'AI Chat to PDF' physical HTML upload method. Click 'AI CHAT TO PDF' for instructions."
           : "The link might be private, or the platform structure has changed.",
-      });
+      }) + "\n");
+      return res.end();
     }
 
-    res.json({ title, messages: formattedMessages });
+    res.write(JSON.stringify({ type: 'complete', data: { title, messages: formattedMessages } }) + "\n");
+    res.end();
   } catch (error: any) {
     if (error.message && error.message.includes("CHAT_DELETED")) {
-      return res.status(404).json({
+      res.write(JSON.stringify({
+        type: 'error',
+        status: 404,
         error: "CHAT_DELETED",
         message: "The shared chat you provided has been deleted by its owner.",
         suggestion: "Please try another valid chat share link.",
-      });
+      }) + "\n");
+      return res.end();
     }
 
     if (error.message && error.message.includes("CLOUDFLARE_BLOCKED")) {
       console.warn("Extraction blocked by Cloudflare for URL:", req.body.url);
-      return res.status(403).json({
+      res.write(JSON.stringify({
+        type: 'error',
+        status: 403,
         error: "CLOUDFLARE_BLOCKED",
         message:
           "This link is protected by Cloudflare and cannot be extracted automatically.",
         suggestion:
           "Please use the 'Save as HTML' method directly in your browser and use the 'Upload HTML File' option instead.",
-      });
+      }) + "\n");
+      return res.end();
     }
 
     console.error("Extraction error:", error);
@@ -653,20 +690,26 @@ app.post("/api/extract", async (req, res) => {
       (error.message && error.message.includes("timeout")) ||
       (error.message && error.message.includes("TargetCloseError"))
     ) {
-      return res.status(504).json({
+      res.write(JSON.stringify({
+        type: 'error',
+        status: 504,
         error: "TIMEOUT",
         message:
           "Extraction timed out. If you are hosting on Render, the default headless API limit might be reached, and local bypass failed. Please create a free account at Browserless.io and add BROWSERLESS_TOKEN to your environment variables on Render.",
         suggestion:
           "Try again later, add a custom BROWSERLESS_TOKEN, or use Markdown/HTML export instead.",
-      });
+      }) + "\n");
+      return res.end();
     }
 
-    res.status(500).json({
+    res.write(JSON.stringify({
+      type: 'error',
+      status: 500,
       error: "EXTRACTION_ERROR",
       message:
         error.message || "An unexpected error occurred during extraction.",
-    });
+    }) + "\n");
+    res.end();
   }
 });
 
@@ -681,19 +724,39 @@ app.post("/api/extract-html", async (req, res) => {
       });
     }
 
+    res.setHeader('Content-Type', 'application/x-ndjson');
+    res.setHeader('Transfer-Encoding', 'chunked');
+
+    const onProgress = (info: any) => {
+      res.write(JSON.stringify({ type: 'progress', ...info }) + "\n");
+    };
+
+    onProgress({ message: 'Parsing HTML Document...' });
+
     const { title, messages } = extractMessagesFromHtml(html);
 
     if (messages.length === 0) {
-      return res.status(422).json({
+      res.write(JSON.stringify({
+        type: 'error',
+        status: 422,
         error: "PARSING_FAILED",
         message: "Could not extract structured messages from this HTML file.",
         suggestion:
           'Ensure you saved the "Complete" page (Ctrl+S) and didn\'t change the filename extension.',
-      });
+      }) + "\n");
+      return res.end();
     }
 
     const now = Date.now();
+    const totalImages = messages.reduce((acc, msg) => acc + (msg.imagesUrls?.length || 0), 0);
+    
+    onProgress({
+      messagesFound: messages.length,
+      imagesExtracted: 0,
+      message: `Found ${messages.length} messages and ${totalImages} images...`
+    });
 
+    let imagesExtractedCount = 0;
     // Download images if possible
     for (const msg of messages) {
       msg.imagesUrls = msg.imagesUrls || [];
@@ -745,6 +808,13 @@ app.post("/api/extract-html", async (req, res) => {
           } else {
             localImages.push(imgUrl);
           }
+          
+          imagesExtractedCount++;
+          onProgress({
+            messagesFound: messages.length,
+            imagesExtracted: imagesExtractedCount,
+            message: `Downloading images... (${imagesExtractedCount})`
+          });
         } catch (err) {
           console.error(`Failed to download ${imgUrl}:`, err);
           localImages.push(imgUrl);
@@ -762,13 +832,17 @@ app.post("/api/extract-html", async (req, res) => {
         new Date(now - (messages.length - index) * 60000).toISOString(),
     }));
 
-    res.json({ title, messages: formattedMessages });
+    res.write(JSON.stringify({ type: 'complete', data: { title, messages: formattedMessages } }) + "\n");
+    res.end();
   } catch (error: any) {
     console.error("Extraction error:", error);
-    res.status(500).json({
+    res.write(JSON.stringify({
+      type: 'error',
+      status: 500,
       error: "EXTRACTION_ERROR",
       message: error.message || "Failed to process the uploaded HTML file.",
-    });
+    }) + "\n");
+    res.end();
   }
 });
 

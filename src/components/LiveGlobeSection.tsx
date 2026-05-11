@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Activity, Globe2, Users, Heart } from 'lucide-react';
+import CountUp from 'react-countup';
 import { db } from '../firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import RotatingEarth from './RotatingEarth';
@@ -60,7 +61,7 @@ export function LiveGlobeSection() {
         
         <div className="lg:col-span-2 relative aspect-square max-h-[500px] flex justify-center items-center overflow-hidden rounded-full" ref={containerRef}>
             {width > 0 && (
-              <div className="absolute inset-0 flex items-center justify-center mix-blend-lighten cursor-move w-full h-full">
+              <div className="absolute inset-0 flex items-center justify-center cursor-move w-full h-full">
                 <RotatingEarth width={width} height={height} className="w-full h-full" />
               </div>
             )}
@@ -73,7 +74,7 @@ export function LiveGlobeSection() {
               <span className="text-xs font-semibold uppercase tracking-wider">Total Visitors</span>
             </div>
             <div className="text-3xl font-mono font-bold text-zinc-900 dark:text-white">
-              {stats.visitors.toLocaleString()}
+              <CountUp end={stats.visitors} preserveValue duration={2} separator="," />
             </div>
             <p className="text-sm text-zinc-400 mt-2">All time platform pageviews</p>
           </div>
@@ -84,7 +85,7 @@ export function LiveGlobeSection() {
               <span className="text-xs font-semibold uppercase tracking-wider">Total USES</span>
             </div>
             <div className="text-3xl font-mono font-bold text-zinc-900 dark:text-white">
-               {stats.uses.toLocaleString()}
+               <CountUp end={stats.uses} preserveValue duration={2} separator="," />
             </div>
             <p className="text-sm text-zinc-400 mt-2">Successful bridge interactions</p>
           </div>
@@ -95,7 +96,7 @@ export function LiveGlobeSection() {
               <span className="text-xs font-semibold uppercase tracking-wider">Donations</span>
             </div>
             <div className="text-3xl font-mono font-bold text-zinc-900 dark:text-white">
-               {stats.donationCount.toLocaleString()}
+               <CountUp end={stats.donationCount} preserveValue duration={2} separator="," />
             </div>
             <p className="text-sm text-zinc-400 mt-2">Generous donations received</p>
           </div>

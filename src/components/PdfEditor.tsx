@@ -4,7 +4,6 @@ import { motion } from 'motion/react';
 import { X, Download, FileText, ChevronRight, CheckCircle2, FileDown } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import html2pdf from 'html2pdf.js';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 import { saveAs } from 'file-saver';
 import { toast } from 'sonner';
@@ -281,7 +280,18 @@ export function PdfEditor({ chatData, onClose }: PdfEditorProps) {
     };
 
     const downloadPdfPromise = async () => {
-      await html2pdf().from(element).set(opt).save();
+      const html2canvas = (await import('html2canvas')).default;
+      const jsPDF = (await import('jspdf')).jsPDF;
+      
+      const canvas = await html2canvas(element, { scale: 2, useCORS: true, logging: false });
+      const imgData = canvas.toDataURL('image/jpeg', 0.98);
+      
+      const pdf = new jsPDF({ unit: 'mm', format: pageSize, orientation: 'portrait' });
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      
+      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`${pdfName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`);
     };
 
     toast.promise(downloadPdfPromise(), {
