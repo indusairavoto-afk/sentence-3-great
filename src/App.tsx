@@ -333,13 +333,18 @@ export default function App() {
             try {
               const parsed = JSON.parse(lines[i]);
               if (parsed.type === 'progress') {
-                setUploadProgress((prev: any) => ({
-                    ...prev,
-                    phase: parsed.message || (prev ? prev.phase : 'Processing...'),
-                    messagesOut: parsed.messagesFound != null ? parsed.messagesFound : prev?.messagesOut,
-                    imagesOut: parsed.imagesExtracted != null ? parsed.imagesExtracted : prev?.imagesOut,
-                    percent: prev ? prev.percent : 70
-                }));
+                setUploadProgress((prev: any) => {
+                    const extracted = parsed.imagesExtracted || 0;
+                    const total = parsed.totalImages || 0;
+                    const calculatedPercent = total > 0 ? 70 + Math.round((extracted / total) * 20) : 70;
+                    return {
+                        ...prev,
+                        phase: parsed.message || (prev ? prev.phase : 'Processing...'),
+                        messagesOut: parsed.messagesFound != null ? parsed.messagesFound : prev?.messagesOut,
+                        imagesOut: parsed.imagesExtracted != null ? parsed.imagesExtracted : prev?.imagesOut,
+                        percent: calculatedPercent
+                    };
+                });
                 break;
               }
             } catch(e) {}

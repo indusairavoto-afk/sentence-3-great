@@ -5,6 +5,8 @@ import fs from "fs";
 import * as cheerio from "cheerio";
 import { convert } from "html-to-text";
 import crypto from "crypto";
+import path from "path";
+process.env.PUPPETEER_CACHE_DIR = path.join(process.cwd(), '.puppeteer-cache');
 import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import TurndownService from "turndown";
@@ -106,13 +108,13 @@ async function extractChatWithImages(
         );
         browser = await puppeteer.launch({
           headless: true,
-          args: ["--no-sandbox", "--disable-setuid-sandbox"],
+          args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--single-process"],
         });
       }
     } else {
       browser = await puppeteer.launch({
         headless: true,
-        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--single-process"],
       });
     }
     const page = await browser.newPage();
@@ -494,6 +496,7 @@ async function extractChatWithImages(
       const totalImages = messagesData.reduce((acc, msg) => acc + msg.imagesUrls.length, 0);
       onProgress({
         messagesFound: messagesData.length,
+        totalImages: totalImages,
         imagesExtracted: 0,
         message: `Found ${messagesData.length} messages and ${totalImages} images...`
       });
@@ -555,6 +558,7 @@ async function extractChatWithImages(
             if (onProgress) {
               onProgress({
                 messagesFound: messagesData.length,
+                totalImages: totalImages,
                 imagesExtracted: imagesExtractedCount,
                 message: `Downloading images... (${imagesExtractedCount})`
               });
@@ -620,6 +624,9 @@ app.post("/api/extract", async (req, res) => {
     
     res.setHeader('Content-Type', 'application/x-ndjson');
     res.setHeader('Transfer-Encoding', 'chunked');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
     
     const onProgress = (info: any) => {
       res.write(JSON.stringify({ type: 'progress', ...info }) + "\n");
@@ -726,6 +733,9 @@ app.post("/api/extract-html", async (req, res) => {
 
     res.setHeader('Content-Type', 'application/x-ndjson');
     res.setHeader('Transfer-Encoding', 'chunked');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
 
     const onProgress = (info: any) => {
       res.write(JSON.stringify({ type: 'progress', ...info }) + "\n");
@@ -752,6 +762,7 @@ app.post("/api/extract-html", async (req, res) => {
     
     onProgress({
       messagesFound: messages.length,
+      totalImages: totalImages,
       imagesExtracted: 0,
       message: `Found ${messages.length} messages and ${totalImages} images...`
     });
@@ -812,6 +823,7 @@ app.post("/api/extract-html", async (req, res) => {
           imagesExtractedCount++;
           onProgress({
             messagesFound: messages.length,
+            totalImages: totalImages,
             imagesExtracted: imagesExtractedCount,
             message: `Downloading images... (${imagesExtractedCount})`
           });
