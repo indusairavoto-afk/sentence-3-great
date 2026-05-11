@@ -453,9 +453,11 @@ async function extractChatWithImages(
         .filter((msg) => msg.text.trim() !== "" || msg.imagesUrls.length > 0); // Filter out truly empty messages
     });
 
+    const docPageTitle = await page.title();
+    const docPageUrl = page.url();
     const isGrok =
-      document.title.toLowerCase().includes("grok") ||
-      window.location.href.includes("grok.com");
+      docPageTitle.toLowerCase().includes("grok") ||
+      docPageUrl.includes("grok.com");
 
     // Second pass to resolve remaining unknown roles using flip-flop logic
     let isUser = true;
