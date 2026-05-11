@@ -49,13 +49,43 @@ function cleanHtml($, el) {
   return output.trim();
 }
 
+import puppeteer from 'puppeteer-core';
+
 async function extractChatViaAxios(url: string) {
-  const { data } = await axios.get(url, {
-    headers: {
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    },
-    timeout: 30000 
+  const browserlessToken = process.env.BROWSERLESS_TOKEN || "2UUaQFRvjHXBtgr8fefbc37d4cfbd5740af20de1d8e200498";
+  
+  const browser = await puppeteer.connect({
+    browserWSEndpoint: `wss://chrome.browserless.io?token=${browserlessToken}&stealth=true`
   });
+  
+  let data = "";
+  try {
+    const page = await browser.newPage();
+    // Avoid navigator.webdriver detection
+    await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+    await page.setExtraHTTPHeaders({
+       "Accept-Language": "en-US,en;q=0.9",
+    });
+    
+    // Some Cloudflare instances check viewport
+    await page.setViewport({ width: 1280, height: 800 });
+
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: 35000 });
+    
+    // Wait briefly to ensure rendering completes
+    await new Promise(r => setTimeout(r, 2000));
+    
+    data = await page.content();
+    
+    if (data.includes('404<!-- --> <!-- -->Not Found') || data.includes('<title>404 Not Found</title>')) {
+      throw new Error("CHAT_DELETED");
+    }
+  } catch (error) {
+    console.error("Puppeteer fetch failed:", error);
+    throw error;
+  } finally {
+    await browser.close();
+  }
 
   const $ = cheerio.load(data);
   const title = $('title').text() || 'Extracted Chat';
@@ -411,7 +441,7 @@ app.post("/api/extract-html", async (req, res) => {
     console.error("Extraction error:", error);
     res.status(500).json({
       error: "EXTRACTION_ERROR",
-      message: error.message || "Failed to process the uploaded HTML file.",
+      message: (error.message && error.message.includes("fetch")) ? "Failed to download image. The image server might be blocking the request." : (error.message || "Failed to process the uploaded HTML file."),
     });
   }
 });

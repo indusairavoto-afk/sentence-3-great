@@ -321,120 +321,138 @@ export default function App() {
         payload = { html: htmlText };
         endpoint = '/api/extract-html';
       } else {
-        setUploadProgress({ phase: 'Validating Link...', percent: 10 });
-        await new Promise(r => setTimeout(r, 200));
-        
-        let htmlText = '';
+        setUploadProgress({ phase: 'Sending Link to Server...', percent: 10 });
+        setLoading(true);
+
         try {
-          setUploadProgress({ phase: 'Fetching Remote Page (Direct)...', percent: 20 });
-          // Fetch directly from frontend
-          const directRes = await fetch(shareLink);
-          if (directRes.ok) {
-            htmlText = await directRes.text();
-          } else {
-             throw new Error("Direct fetch failed");
+          const response = await fetch('/api/extract', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: shareLink })
+          });
+
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.message || data.error || 'Failed to extract chat');
           }
-        } catch(e) {
-          console.log("Direct fetch failed, trying proxy");
-          setUploadProgress({ phase: 'Fetching Remote Page (Proxy)...', percent: 30 });
-          const proxyRes = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(shareLink));
-          if (proxyRes.ok) {
-            htmlText = await proxyRes.text();
-          } else {
-            throw new Error("Proxy fetch failed");
-          }
+
+          setUploadProgress({ phase: 'Extraction Complete...', percent: 100 });
+          
+          setTimeout(() => {
+            setChatData(data);
+            if (action === 'pdf') {
+              setShowPdfEditor(true);
+            }
+            incrementGlobalStat('uses');
+            setUploadProgress(null);
+            setLoading(false);
+            setShowDonationModal(true);
+            toast.success('Successfully extracted chat!');
+          }, 800);
+        } catch (err: any) {
+          setError({
+            error: 'EXTRACTION_ERROR',
+            message: err.message || 'Failed to extract chat from URL.',
+            suggestion: 'Try again or use the Physical Upload method (AI CHAT TO PDF).'
+          });
+          toast.error(err.message || 'Extraction failed');
+          setLoading(false);
+          setUploadProgress(null);
         }
         
-        payload = { html: htmlText };
-        endpoint = '/api/parse';
-        setUploadProgress({ phase: 'Sending HTML to server...', percent: 40 });
-      }
-
-      const res = await new Promise<any>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', endpoint);
-        xhr.setRequestHeader('Content-Type', 'application/json');
-        
-        let progressInterval: NodeJS.Timeout;
-
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable && inputMode === 'file') {
-            const uploadPercent = Math.round((e.loaded / e.total) * 45);
-            setUploadProgress({ phase: `Transmitting Data (${(e.loaded/1024/1024).toFixed(1)}MB)...`, percent: 25 + uploadPercent });
-          }
-        };
-        
-        xhr.upload.onload = () => {
-          setUploadProgress({ phase: inputMode === 'link' ? 'Server Analyzing Link...' : 'Server Processing HTML...', percent: 70 });
-          let simulatedProgress = 70;
-          progressInterval = setInterval(() => {
-            simulatedProgress += (Math.random() * 2);
-            if (simulatedProgress < 90) {
-              const phases = ['Parsing DOM Structure...', 'Extracting Chat Nodes...', 'Formatting Messages...'];
-              const currentPhase = phases[Math.floor((simulatedProgress - 70) / 7)] || phases[2];
-              setUploadProgress({ phase: currentPhase, percent: Math.round(simulatedProgress) });
-            }
-          }, 150);
-        };
-        
-        xhr.onload = () => {
-          if (progressInterval) clearInterval(progressInterval);
-          setUploadProgress({ phase: 'Finalizing Extraction...', percent: 95 });
-          try {
-            const data = JSON.parse(xhr.responseText);
-            resolve({ ok: xhr.status >= 200 && xhr.status < 300, data });
-          } catch (err) {
-            console.error("Failed to parse JSON response:", xhr.responseText.substring(0, 200));
-            
-            // If it's HTML, try to extract title or give a generic message
-            let errorMessage = "Unknown server issue.";
-            if (xhr.status === 403) {
-              errorMessage = "Request blocked. The server or proxy may have blocked this IP. Try the HTML file upload method instead.";
-            } else if (xhr.status >= 500) {
-              errorMessage = "Proxy error or timeout. The target site might be taking too long to load.";
-            }
-            
-            reject(new Error(`Server error (Status ${xhr.status}). ${errorMessage}`));
-          }
-        };
-        
-        xhr.onerror = () => {
-          if (progressInterval) clearInterval(progressInterval);
-          reject(new Error('Network error during transmission.'));
-        };
-        
-        xhr.send(JSON.stringify(payload));
-      });
-
-      if (!res.ok) {
-        setError(res.data as ErrorData);
-        toast.error(`Extraction failed: ${res.data.message || res.data.error || 'Unknown error'}`);
-        setUploadProgress(null);
-        setLoading(false);
         return;
       }
 
-      toast.success('Successfully extracted chat!');
+      // -- file extraction logic ---
+      try {
+        const res = await new Promise<any>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', endpoint);
+          xhr.setRequestHeader('Content-Type', 'application/json');
+          
+          let progressInterval: NodeJS.Timeout;
 
-      setUploadProgress({ phase: 'Extraction Complete! Bridging...', percent: 100 });
-      
-      setTimeout(() => {
-        setChatData(res.data);
-        if (action === 'pdf') { // Note: wait, action is available in closure scope? Let's check `handleExtract` args
-          setShowPdfEditor(true);
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable && inputMode === 'file') {
+              const uploadPercent = Math.round((e.loaded / e.total) * 45);
+              setUploadProgress({ phase: `Transmitting Data (${(e.loaded/1024/1024).toFixed(1)}MB)...`, percent: 25 + uploadPercent });
+            }
+          };
+          
+          xhr.upload.onload = () => {
+            setUploadProgress({ phase: 'Server Processing HTML...', percent: 70 });
+            let simulatedProgress = 70;
+            progressInterval = setInterval(() => {
+              simulatedProgress += (Math.random() * 2);
+              if (simulatedProgress < 90) {
+                const phases = ['Parsing DOM Structure...', 'Extracting Chat Nodes...', 'Formatting Messages...'];
+                const currentPhase = phases[Math.floor((simulatedProgress - 70) / 7)] || phases[2];
+                setUploadProgress({ phase: currentPhase, percent: Math.round(simulatedProgress) });
+              }
+            }, 150);
+          };
+          
+          xhr.onload = () => {
+            if (progressInterval) clearInterval(progressInterval);
+            setUploadProgress({ phase: 'Finalizing Extraction...', percent: 95 });
+            try {
+              const data = JSON.parse(xhr.responseText);
+              resolve({ ok: xhr.status >= 200 && xhr.status < 300, data });
+            } catch (err) {
+              console.error("Failed to parse JSON response:", xhr.responseText.substring(0, 200));
+              let errorMessage = "Unknown server issue.";
+              if (xhr.status === 403) errorMessage = "Request blocked.";
+              else if (xhr.status >= 500) errorMessage = "Server error.";
+              reject(new Error(`Server error (Status ${xhr.status}). ${errorMessage}`));
+            }
+          };
+          
+          xhr.onerror = () => {
+            if (progressInterval) clearInterval(progressInterval);
+            reject(new Error('Network error during transmission.'));
+          };
+          
+          xhr.send(JSON.stringify(payload));
+        });
+
+        if (!res.ok) {
+          setError(res.data as ErrorData);
+          toast.error(`Extraction failed: ${res.data.message || res.data.error || 'Unknown error'}`);
+          setUploadProgress(null);
+          setLoading(false);
+          return;
         }
-        incrementGlobalStat('uses');
+
+        toast.success('Successfully extracted chat!');
+        setUploadProgress({ phase: 'Extraction Complete! Bridging...', percent: 100 });
+        
+        setTimeout(() => {
+          setChatData(res.data);
+          if (action === 'pdf') {
+            setShowPdfEditor(true);
+          }
+          incrementGlobalStat('uses');
+          setUploadProgress(null);
+          setLoading(false);
+          setShowDonationModal(true);
+        }, 800);
+      } catch(err: any) {
+        setError({ 
+          error: 'EXTRACTION_ERROR', 
+          message: err.message || 'Failed to process the input.', 
+          suggestion: 'Check file format.' 
+        });
+        toast.error(`Error: Could not fetch link.`);
         setUploadProgress(null);
         setLoading(false);
-        setShowDonationModal(true);
-      }, 800);
+      }
     } catch(err: any) {
       setError({ 
         error: 'EXTRACTION_ERROR', 
         message: err.message || 'Failed to process the input.', 
-        suggestion: 'Ensure your file or link is correctly formatted and accessible.' 
+        suggestion: 'Check file format or try another method.' 
       });
-      toast.error(`Error: ${err.message || 'Failed to process the input'}`);
+      toast.error(`Error: Extraction failed.`);
       setUploadProgress(null);
       setLoading(false);
     }
