@@ -235,6 +235,23 @@ export default function App() {
   const [showDonationModal, setShowDonationModal] = useState(false);
   const placeholderText = useTypewriterPlaceholder(URL_PLACEHOLDERS);
 
+  // Auto-clear extracted chat data after 7 minutes for privacy and memory management
+  useEffect(() => {
+    let timer: any;
+    if (chatData) {
+      timer = setTimeout(() => {
+        setChatData(null);
+        setHtmlFileState(null);
+        setShareLink('');
+        setInputMode('file');
+        setShowPdfEditor(false);
+        dbTools.clear().catch(console.error);
+        toast.info('Chat session expired for your privacy (7 minutes limit).');
+      }, 7 * 60 * 1000); // 7 minutes
+    }
+    return () => clearTimeout(timer);
+  }, [chatData]);
+
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [currentTab]);

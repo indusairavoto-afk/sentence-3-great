@@ -47,7 +47,7 @@ if (!fs.existsSync(storageDir)) {
 }
 app.use("/images", express.static(storageDir));
 
-// Clean up images older than 1 hour periodically to prevent memory/disk bloat
+// Clean up images older than 7 minutes periodically
 setInterval(() => {
   try {
     const now = Date.now();
@@ -56,16 +56,16 @@ setInterval(() => {
     files.forEach((file) => {
       const filePath = path.join(storageDir, file);
       const stat = fs.statSync(filePath);
-      if (now - stat.mtimeMs > 60 * 60 * 1000) { // 1 hour
+      if (now - stat.mtimeMs > 7 * 60 * 1000) { // 7 minutes
         fs.unlinkSync(filePath);
         deleted++;
       }
     });
-    if (deleted > 0) console.log(`Cleaned up ${deleted} old images from storage`);
+    if (deleted > 0) console.log(`Cleaned up ${deleted} old images from storage (7m expiry)`);
   } catch (err) {
     console.error("Failed to clean up old images:", err);
   }
-}, 30 * 60 * 1000); // Check every 30 minutes
+}, 60 * 1000); // Check every 1 minute
 
 // Generates a public text link readable by external AI bots (like Claude)
 app.post("/api/public-bridge", async (req, res) => {
@@ -136,7 +136,16 @@ async function extractChatWithImages(
             "--no-zygote",
             "--js-flags=--max-old-space-size=256",
             "--disable-site-isolation-trials",
-            "--disable-accelerated-2d-canvas"
+            "--disable-accelerated-2d-canvas",
+            "--mute-audio",
+            "--disable-extensions",
+            "--no-first-run",
+            "--disable-default-apps",
+            "--disable-sync",
+            "--disable-translate",
+            "--hide-scrollbars",
+            "--metrics-recording-only",
+            "--safebrowsing-disable-auto-update"
           ],
         });
       }
@@ -144,14 +153,23 @@ async function extractChatWithImages(
       browser = await puppeteer.launch({
         headless: true,
         args: [
-          "--no-sandbox", 
+          "--no-sandbox",
           "--disable-setuid-sandbox",
           "--disable-dev-shm-usage",
           "--disable-gpu",
           "--no-zygote",
           "--js-flags=--max-old-space-size=256",
           "--disable-site-isolation-trials",
-          "--disable-accelerated-2d-canvas"
+          "--disable-accelerated-2d-canvas",
+          "--mute-audio",
+          "--disable-extensions",
+          "--no-first-run",
+          "--disable-default-apps",
+          "--disable-sync",
+          "--disable-translate",
+          "--hide-scrollbars",
+          "--metrics-recording-only",
+          "--safebrowsing-disable-auto-update"
         ],
       });
     }
@@ -737,8 +755,9 @@ app.post("/api/extract", async (req, res) => {
 
     if (
       error.name === "TimeoutError" ||
-      (error.message && error.message.includes("timeout")) ||
-      (error.message && error.message.includes("TargetCloseError"))
+      (error.message && error.message.toLowerCase().includes("timeout")) ||
+      (error.message && error.message.includes("TargetCloseError")) ||
+      error.message === "EXTRACTION_TIMEOUT"
     ) {
       return res.status(504).json({
         error: "TIMEOUT",
