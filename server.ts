@@ -152,9 +152,13 @@ async function extractChatWithImages(
 
     // Instantly check for deleted chats BEFORE we wait for messages!
     let bodyTextEarly = await page.evaluate(() => document.body.innerText);
+    if (!bodyTextEarly) bodyTextEarly = "";
     if (
       bodyTextEarly.includes("This shared chat was deleted") ||
-      bodyTextEarly.includes("This shared chat was delete")
+      bodyTextEarly.includes("This shared chat was delete") ||
+      bodyTextEarly.includes("Can't load shared conversation") ||
+      bodyTextEarly.includes("404 Not Found") ||
+      bodyTextEarly.includes("Conversation not found")
     ) {
       throw new Error("CHAT_DELETED");
     }
@@ -187,7 +191,10 @@ async function extractChatWithImages(
     );
     if (
       bodyText.includes("This shared chat was deleted") ||
-      bodyText.includes("This shared chat was delete")
+      bodyText.includes("This shared chat was delete") ||
+      bodyText.includes("Can't load shared conversation") ||
+      bodyText.includes("404 Not Found") ||
+      bodyText.includes("Conversation not found")
     ) {
       throw new Error("CHAT_DELETED");
     }
