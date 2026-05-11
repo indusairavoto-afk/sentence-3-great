@@ -440,12 +440,12 @@ export default function App() {
       </div>
 
       <header className="sticky top-0 z-50 flex items-center justify-between px-4 sm:px-6 md:px-12 py-4 sm:py-6 border-b border-zinc-200/50 dark:border-white/5 backdrop-blur-xl bg-white/70 dark:bg-black/50 shrink-0 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-md bg-gradient-to-br from-zinc-800 to-black dark:from-zinc-200 dark:to-white flex items-center justify-center shadow-inner">
-            <div className="w-3 h-3 rounded-sm bg-white dark:bg-black"></div>
+        <button onClick={() => setCurrentTab('converter')} className="flex items-center gap-3 text-left hover:opacity-80 transition-opacity">
+          <div className="w-11 h-11 bg-black dark:bg-white rounded-xl flex items-center justify-center shadow-sm shrink-0 overflow-hidden">
+            <img src="https://res.cloudinary.com/dlgjgdl90/image/upload/f_auto,q_auto/ChatGPT_Image_May_10_2026_11_44_39_AM_esthqg" alt="Seamless Bridge Logo" className="w-8 h-8 object-contain transition-all invert dark:invert-0" />
           </div>
-          <span className="text-xl font-bold tracking-[0.15em] uppercase font-mono bg-clip-text text-transparent bg-gradient-to-r from-zinc-900 to-zinc-500 dark:from-white dark:to-zinc-500">Bridge</span>
-        </div>
+          <span className="text-xl font-bold tracking-[0.10em] uppercase font-mono bg-clip-text text-transparent bg-gradient-to-r from-zinc-900 to-zinc-500 dark:from-white dark:to-zinc-500 leading-none">SEAMLESS<br/>BRIDGE</span>
+        </button>
         <nav className="flex items-center gap-2">
           <div className="hidden lg:flex items-center gap-6 font-medium text-xs uppercase tracking-widest text-zinc-500 mr-4">
             <button onClick={() => setCurrentTab('about')} className={`transition-colors ${currentTab === 'about' ? 'text-zinc-900 dark:text-zinc-100 font-bold' : 'hover:text-zinc-900 dark:hover:text-zinc-300'}`}>About</button>
@@ -523,53 +523,42 @@ export default function App() {
                 <h3 className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-bold bg-zinc-100 dark:bg-zinc-900 px-3 py-1 rounded inline-flex">Bridged Conversion</h3>
               </div>
 
-              <div className="bg-white/50 backdrop-blur-sm dark:bg-[#0a0a0a]/50 border border-zinc-200 dark:border-white/10 overflow-hidden mb-12 rounded-xl shadow-2xl">
-                <div className="flex flex-col md:flex-row md:items-center justify-between p-4 border-b border-zinc-200 dark:border-white/10 bg-zinc-50/50 dark:bg-black/20 gap-4">
-                  <div className="h-4 w-48 bg-zinc-200 dark:bg-zinc-800 animate-pulse rounded"></div>
-                  <div className="flex items-center gap-4 flex-wrap">
-                    <div className="h-3 w-16 bg-zinc-200 dark:bg-zinc-800 animate-pulse rounded"></div>
-                    <div className="flex gap-2 flex-wrap">
-                      <div className="h-7 w-24 bg-zinc-200 dark:bg-zinc-800 animate-pulse rounded"></div>
-                      <div className="h-7 w-16 bg-zinc-200 dark:bg-zinc-800 animate-pulse rounded"></div>
-                      <div className="h-7 w-16 bg-zinc-200 dark:bg-zinc-800 animate-pulse rounded"></div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-b border-zinc-200 dark:border-white/10 overflow-hidden">
-                  <div className="p-4 bg-zinc-50/80 dark:bg-zinc-900/40">
-                    <div className="flex justify-between items-center mb-2 font-mono text-[10px] uppercase tracking-widest text-zinc-700 dark:text-zinc-400">
-                      <span className="flex items-center gap-2">
-                        <Loader2 size={10} className="animate-spin text-zinc-500" />
-                        {uploadProgress?.phase || 'Processing Data...'}
-                      </span>
-                      <span className="text-zinc-900 dark:text-white font-bold">{uploadProgress?.percent || 0}%</span>
-                    </div>
-                    <div className="h-1.5 w-full bg-zinc-200/50 dark:bg-black/50 overflow-hidden relative rounded-full shadow-inner">
-                      <motion.div
-                        className="absolute top-0 bottom-0 left-0 bg-gradient-to-r from-zinc-500 to-zinc-900 dark:from-zinc-400 dark:to-white rounded-full"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${uploadProgress?.percent || 0}%` }}
-                        transition={{ ease: "easeOut", duration: 0.3 }}
-                      />
-                    </div>
+              <div className="bg-white/50 backdrop-blur-sm dark:bg-[#0a0a0a]/50 border border-zinc-200 dark:border-white/10 overflow-hidden mb-12 rounded-xl shadow-2xl p-12 lg:p-24 flex flex-col items-center justify-center min-h-[400px]">
+                <div className="relative flex justify-center items-center mb-12 mt-4">
+                  {/* Ping rings */}
+                  <div className="absolute w-20 h-20 border-2 border-zinc-300 dark:border-zinc-700 rounded-[1.5rem] animate-[ping_2.5s_ease-out_infinite] opacity-50 z-0"></div>
+                  <div className="absolute w-20 h-20 border-2 border-zinc-200 dark:border-zinc-800 rounded-[1.5rem] animate-[ping_2.5s_ease-out_infinite_0.8s] opacity-30 z-0"></div>
+                  <div className="absolute w-20 h-20 border border-zinc-100 dark:border-zinc-900 rounded-[1.5rem] animate-[ping_2.5s_ease-out_infinite_1.6s] opacity-10 z-0"></div>
+                  
+                  {/* Central Logo Box */}
+                  <div className="relative w-20 h-20 bg-black dark:bg-white rounded-2xl flex items-center justify-center shadow-2xl border border-black/10 dark:border-white/10 z-10 ring-1 ring-white/10 dark:ring-black/10">
+                    <img 
+                      src="https://res.cloudinary.com/dlgjgdl90/image/upload/f_auto,q_auto/ChatGPT_Image_May_10_2026_11_44_39_AM_esthqg" 
+                      alt="Processing Logo" 
+                      className="w-16 h-16 object-contain invert dark:invert-0 animate-[pulse_2s_ease-in-out_infinite]" 
+                    />
                   </div>
                 </div>
                 
-                <div className="divide-y divide-zinc-200 dark:divide-white/5 bg-white dark:bg-[#0a0a0a] w-full">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="p-6 md:p-8 flex flex-col md:flex-row gap-6">
-                      <div className="w-24 shrink-0 flex items-start pt-1">
-                        <div className="h-5 w-16 bg-zinc-200 dark:bg-zinc-800 animate-pulse rounded"></div>
-                      </div>
-                      <div className="flex-1 flex flex-col gap-3">
-                        <div className={`h-3 bg-zinc-200 dark:bg-zinc-800 animate-pulse rounded ${i % 2 === 0 ? 'w-full' : 'w-5/6'}`}></div>
-                        <div className={`h-3 bg-zinc-200 dark:bg-zinc-800 animate-pulse rounded ${i % 2 === 0 ? 'w-4/5' : 'w-full'}`}></div>
-                        <div className={`h-3 bg-zinc-200 dark:bg-zinc-800 animate-pulse rounded ${i % 2 === 0 ? 'w-full' : 'w-2/3'}`}></div>
-                        {i === 2 && <div className="h-3 bg-zinc-200 dark:bg-zinc-800 animate-pulse rounded w-1/2"></div>}
-                      </div>
-                    </div>
-                  ))}
+                <h2 className="text-sm md:text-base font-bold font-mono tracking-[0.2em] uppercase text-zinc-900 dark:text-zinc-100 mb-2 animate-[pulse_2s_ease-in-out_infinite]">Communication Ping</h2>
+                <p className="text-xs md:text-sm text-zinc-500 mb-8 flex items-center gap-2">
+                  <Loader2 size={14} className="animate-spin text-zinc-400" />
+                  {uploadProgress?.phase || 'Establishing Neural Bridge...'}
+                </p>
+                
+                <div className="w-full max-w-sm px-4">
+                  <div className="flex justify-between items-center mb-3 font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-700 dark:text-zinc-400">
+                    <span>Signal Strength</span>
+                    <span className="text-zinc-900 dark:text-white font-bold">{uploadProgress?.percent || 0}%</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden shadow-inner relative">
+                    <motion.div
+                      className="absolute top-0 bottom-0 left-0 bg-zinc-900 dark:bg-zinc-100 rounded-full"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${uploadProgress?.percent || 0}%` }}
+                      transition={{ ease: "easeOut", duration: 0.3 }}
+                    />
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -1224,49 +1213,6 @@ export default function App() {
       </footer>
 
       <AnimatePresence>
-        {loading && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40 dark:bg-black/60 backdrop-blur-sm"
-          >
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0, y: 10 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 10 }}
-              transition={{ type: "spring", stiffness: 300, damping: 25 }}
-              className="flex flex-col items-center gap-6 p-8 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl max-w-sm w-full mx-4"
-            >
-              <div className="relative flex items-center justify-center">
-                <div className="absolute inset-0 bg-zinc-100 dark:bg-white/10 rounded-full animate-ping opacity-50" style={{ animationDuration: '2s' }}></div>
-                <div className="bg-zinc-900 dark:bg-white text-white dark:text-black p-4 rounded-xl relative z-10">
-                  <Loader2 size={32} className="animate-spin" />
-                </div>
-              </div>
-              
-              <div className="flex flex-col items-center text-center w-full">
-                <span className="text-zinc-900 dark:text-white font-bold text-lg mb-2 tracking-tight">Processing...</span>
-                <span className="text-zinc-500 dark:text-zinc-400 font-mono text-[10px] uppercase tracking-widest">{uploadProgress?.phase || 'Initializing...'}</span>
-                {inputMode === 'link' && (!uploadProgress || uploadProgress.percent < 50) && (
-                  <span className="text-zinc-400 dark:text-zinc-500 text-xs mt-3 bg-zinc-50 dark:bg-zinc-800/50 p-2 rounded-lg border border-zinc-100 dark:border-zinc-800">
-                    Booting headless browser & bypassing security. This takes 5–15 seconds...
-                  </span>
-                )}
-              </div>
-              
-              <div className="w-full h-1.5 bg-zinc-100 dark:bg-zinc-950 overflow-hidden rounded-full border border-zinc-200 dark:border-zinc-800">
-                 <motion.div
-                   className="h-full bg-zinc-900 dark:bg-white w-full"
-                   initial={{ x: '-100%' }}
-                   animate={{ x: `${(uploadProgress?.percent || 0) - 100}%` }}
-                   transition={{ ease: "easeOut", duration: 0.3 }}
-                 />
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
       </AnimatePresence>
 
     </div>
