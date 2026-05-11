@@ -280,6 +280,21 @@ async function extractChatWithImages(
             : undefined;
 
           const imgs = Array.from(el.querySelectorAll("img"))
+            .filter((img) => {
+              const w = parseInt(img.getAttribute("width") || "100", 10);
+              const h = parseInt(img.getAttribute("height") || "100", 10);
+              const className = (img.className || "").toLowerCase();
+              if (w <= 36 || h <= 36) return false;
+              if (
+                className.includes("w-4") ||
+                className.includes("w-5") ||
+                className.includes("icon") ||
+                className.includes("favicon") ||
+                className.includes("logo")
+              )
+                return false;
+              return true;
+            })
             .map((img) => {
               let src = (img as HTMLImageElement).src;
               if (src && src.includes("_next/image") && src.includes("url=")) {
@@ -329,7 +344,16 @@ async function extractChatWithImages(
                 src && (src.startsWith("http") || src.startsWith("data:image")),
             );
 
-          const allImgs = [...imgs, ...canvases, ...bgImgs];
+          const allImgs = [...imgs, ...canvases, ...bgImgs].filter(
+            (src) =>
+              typeof src === "string" &&
+              !src.toLowerCase().includes("avatar") &&
+              !src.toLowerCase().includes("profile") &&
+              !src.toLowerCase().includes("favicon") &&
+              !src.toLowerCase().includes("icon") &&
+              !src.toLowerCase().includes("logo") &&
+              !src.toLowerCase().includes("brand"),
+          );
 
           let role = el.getAttribute("data-message-author-role");
           if (!role) {
@@ -423,18 +447,23 @@ async function extractChatWithImages(
               return t.trim();
             })(),
             timestamp: timestamp || undefined,
-            imagesUrls: allImgs.filter(
-              (src) => !src.includes("avatar") && !src.includes("profile"),
-            ),
+            imagesUrls: allImgs,
           };
         })
         .filter((msg) => msg.text.trim() !== "" || msg.imagesUrls.length > 0); // Filter out truly empty messages
     });
 
+    const isGrok =
+      document.title.toLowerCase().includes("grok") ||
+      window.location.href.includes("grok.com");
+
     // Second pass to resolve remaining unknown roles using flip-flop logic
     let isUser = true;
     for (const msg of messagesData) {
-      if (!msg.role || msg.role === "unknown") {
+      if (isGrok) {
+        msg.role = isUser ? "user" : "assistant";
+        isUser = !isUser;
+      } else if (!msg.role || msg.role === "unknown") {
         msg.role = isUser ? "user" : "assistant";
         isUser = !isUser; // Toggle for the next unknown message
       } else {
@@ -1310,6 +1339,22 @@ function extractMessagesFromHtml(html: string) {
 
         const imgs = $el
           .find("img")
+          .filter((_, img) => {
+            const $img = $(img);
+            const w = parseInt($img.attr("width") || "100", 10);
+            const h = parseInt($img.attr("height") || "100", 10);
+            const className = ($img.attr("class") || "").toLowerCase();
+            if (w <= 36 || h <= 36) return false;
+            if (
+              className.includes("w-4") ||
+              className.includes("w-5") ||
+              className.includes("icon") ||
+              className.includes("favicon") ||
+              className.includes("logo")
+            )
+              return false;
+            return true;
+          })
           .map((_, img) => {
             let src = $(img).attr("src");
             if (src && src.includes("_next/image") && src.includes("url=")) {
@@ -1353,7 +1398,16 @@ function extractMessagesFromHtml(html: string) {
               (src.startsWith("http") || src.startsWith("data:image")),
           ) as string[];
 
-        const allImgs = [...imgs, ...bgImgs];
+        const allImgs = [...imgs, ...bgImgs].filter(
+          (src) =>
+            typeof src === "string" &&
+            !src.toLowerCase().includes("avatar") &&
+            !src.toLowerCase().includes("profile") &&
+            !src.toLowerCase().includes("favicon") &&
+            !src.toLowerCase().includes("icon") &&
+            !src.toLowerCase().includes("logo") &&
+            !src.toLowerCase().includes("brand"),
+        );
 
         if (content.trim() || allImgs.length > 0) {
           messages.push({
@@ -1430,10 +1484,18 @@ function extractMessagesFromHtml(html: string) {
       ),
   );
 
+  const isGrok =
+    title.toLowerCase().includes("grok") ||
+    html.toLowerCase().includes("grok.com");
+
   // Second pass to resolve remaining unknown roles using flip-flop logic
   let isUser = true;
   for (const msg of filteredMessages) {
-    if (!msg.role || msg.role === "unknown") {
+    if (isGrok) {
+      // Force strict alternation for Grok due to obfuscated classes causing false-positives
+      msg.role = isUser ? "user" : "assistant";
+      isUser = !isUser;
+    } else if (!msg.role || msg.role === "unknown") {
       msg.role = isUser ? "user" : "assistant";
       isUser = !isUser; // Toggle for the next unknown message
     } else {
