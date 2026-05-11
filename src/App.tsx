@@ -345,7 +345,16 @@ export default function App() {
             resolve({ ok: xhr.status >= 200 && xhr.status < 300, data });
           } catch (err) {
             console.error("Failed to parse JSON response:", xhr.responseText.substring(0, 200));
-            reject(new Error(`Server error (Status ${xhr.status}). The server might have crashed due to memory limits or proxy timeout. Please reduce the chat size or upgrade hosting.`));
+            
+            // If it's HTML, try to extract title or give a generic message
+            let errorMessage = "Unknown server issue.";
+            if (xhr.status === 403) {
+              errorMessage = "Request blocked. The server or proxy may have blocked this IP. Try the HTML file upload method instead.";
+            } else if (xhr.status >= 500) {
+              errorMessage = "Proxy error or timeout. The target site might be taking too long to load.";
+            }
+            
+            reject(new Error(`Server error (Status ${xhr.status}). ${errorMessage}`));
           }
         };
         

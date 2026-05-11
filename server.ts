@@ -200,6 +200,15 @@ async function extractChatWithImages(
     }
 
     if (
+      title.includes("Sign in - Claude") ||
+      bodyText.includes("Sign in to continue") ||
+      bodyText.includes("Log in to continue") || 
+      title.includes("Log in")
+    ) {
+      throw new Error("LOGIN_REQUIRED");
+    }
+
+    if (
       title.toLowerCase().includes("just a moment") ||
       title.toLowerCase().includes("cloudflare")
     ) {
@@ -673,6 +682,14 @@ app.post("/api/extract", async (req, res) => {
         error: "CHAT_DELETED",
         message: "The shared chat you provided has been deleted by its owner.",
         suggestion: "Please try another valid chat share link.",
+      });
+    }
+
+    if (error.message && error.message.includes("LOGIN_REQUIRED")) {
+      return res.status(403).json({
+        error: "LOGIN_REQUIRED",
+        message: "This platform now requires you to be logged in to view shared chats.",
+        suggestion: "Please use the 'AI Chat to PDF' method instead. Save the page as HTML in your browser and upload it here.",
       });
     }
 
