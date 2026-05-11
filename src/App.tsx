@@ -78,6 +78,7 @@ const dbTools = {
 interface Message {
   role: string;
   content: string;
+  content_html?: string;
   images?: string[];
   timestamp?: string;
 }
@@ -418,7 +419,13 @@ export default function App() {
   };
 
   const copyToClipboard = (text: string, type: string) => {
-    navigator.clipboard.writeText(text);
+    let parsedText = text;
+    try {
+      const div = document.createElement('div');
+      div.innerHTML = text;
+      parsedText = div.textContent || div.innerText || text;
+    } catch (e) {}
+    navigator.clipboard.writeText(parsedText);
     setCopied(type);
     setTimeout(() => setCopied(null), 2000);
   };
@@ -436,12 +443,12 @@ export default function App() {
   };
 
   const formatAsMarkdown = (data: ChatData) => {
-    return `# ${data.title}\n\n` + data.messages.map(m => `### ${m.role.toUpperCase()}\n\n${m.content}\n\n---\n`).join('\n');
+    return `# ${data.title}\n\n` + data.messages.map(m => `### ${m.role.toUpperCase()}\n\n${(m.content_html || m.content).replace(/<[^>]*>?/gm, '')}\n\n---\n`).join('\n');
   };
 
   const formatAsPrompt = (data: ChatData) => {
-    return `Below is a conversation history. Please process it and continue the conversation as the assistant.\n\n` + 
-           data.messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n');
+    return 'Below is a conversation history. Please process it and continue the conversation as the assistant.\n\n' + 
+           data.messages.map(m => m.role.toUpperCase() + ': ' + (m.content_html || m.content).replace(/<[^>]*>?/gm, '')).join('\n\n');
   };
 
   const filteredMessages = useMemo(() => {
@@ -1181,16 +1188,7 @@ export default function App() {
                             </div>
                           )}
 
-                          <div className="prose dark:prose-invert max-w-none text-sm leading-relaxed prose-p:my-2 prose-pre:my-3 prose-pre:bg-zinc-100 dark:prose-pre:bg-zinc-800 prose-pre:text-zinc-900 dark:prose-pre:text-zinc-100 prose-img:max-h-32 prose-img:object-contain prose-img:rounded-md prose-img:my-2">
-                            <ReactMarkdown 
-                              remarkPlugins={[remarkGfm]}
-                              components={{
-                                img: ({node, ...props}) => <img {...props} className="max-w-full h-auto max-h-32 object-contain rounded-md my-2 inline-block shadow-sm border border-zinc-200 dark:border-zinc-800" />
-                              }}
-                            >
-                              {msg.content}
-                            </ReactMarkdown>
-                          </div>
+                          <div className="prose dark:prose-invert max-w-none text-sm leading-relaxed prose-p:my-2 prose-pre:my-3 prose-pre:bg-zinc-100 dark:prose-pre:bg-zinc-800 prose-pre:text-zinc-900 dark:prose-pre:text-zinc-100 prose-img:max-h-32 prose-img:object-contain prose-img:rounded-md prose-img:my-2 overflow-x-auto" dangerouslySetInnerHTML={{ __html: msg.content_html || msg.content }} />
 
                           {msg.content.includes('Uploaded image') && msg.role === 'user' && (!msg.images || msg.images.length === 0) && (
                             <div className="mt-3 text-xs opacity-80 bg-black/5 dark:bg-white/5 p-3 rounded-lg border border-black/10 dark:border-white/10 flex flex-col gap-1.5">

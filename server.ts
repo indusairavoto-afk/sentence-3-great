@@ -5,10 +5,87 @@ import fs from "fs";
 import * as cheerio from "cheerio";
 import { convert } from "html-to-text";
 import crypto from "crypto";
-import puppeteer from "puppeteer-extra";
-import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
+
+import axios from 'axios';
+
+const ALLOWED_TAGS = new Set([
+  'pre', 'code', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
+  'ul', 'ol', 'li', 'strong', 'em', 'blockquote',
+  'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'span', 'div', 'a'
+]);
+
+// Helper to clean HTML while preserving structure
+function cleanHtml($, el) {
+  let output = '';
+  
+  function walk(node) {
+    if (node.type === 'text') {
+      output += node.data.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    } else if (node.type === 'tag') {
+      const tagName = node.name.toLowerCase();
+      const isAllowed = ALLOWED_TAGS.has(tagName);
+      
+      if (isAllowed) {
+        // preserve href for a tags?
+        if (tagName === 'a' && node.attribs && node.attribs.href) {
+           const href = node.attribs.href.replace(/"/g, '&quot;');
+           output += '<' + tagName + ' href="' + href + '">';
+        } else {
+           output += '<' + tagName + '>';
+        }
+      }
+      
+      $(node).contents().each((_, child) => walk(child));
+      
+      if (isAllowed) {
+        output += '</' + tagName + '>';
+      }
+    }
+  }
+  
+  $(el).contents().each((_, child) => walk(child));
+  return output.trim();
+}
+
+async function extractChatViaAxios(url: string) {
+  const { data } = await axios.get(url, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    },
+    timeout: 30000 
+  });
+
+  const $ = cheerio.load(data);
+  const title = $('title').text() || 'Extracted Chat';
+  const messages: any[] = [];
+
+  $('[data-message-author-role]').each((i, el) => {
+    let role = $(el).attr('data-message-author-role');
+    if (role !== 'user' && role !== 'assistant') {
+       role = 'assistant';
+    }
+    
+    // Some ChatGPT pages nest .markdown inside the element
+    let target = $(el).find('.markdown');
+    if (target.length === 0) {
+      target = $(el); // fallback
+    } else {
+      target = target.first();
+    }
+    
+    const contentHtml = cleanHtml($, target);
+    
+    messages.push({
+      role: role,
+      content_html: contentHtml
+    });
+  });
+
+  return { title, messages };
+}
+
 
 const turndownService = new TurndownService({
   headingStyle: "atx",
@@ -16,9 +93,6 @@ const turndownService = new TurndownService({
 });
 turndownService.use(gfm);
 
-const stealth = StealthPlugin();
-stealth.enabledEvasions.delete("iframe.contentWindow");
-puppeteer.use(stealth);
 
 const app = express();
 const MAX_DEBUG_LOGS = 500;
@@ -103,579 +177,6 @@ app.post("/api/public-bridge", async (req, res) => {
 });
 
 // Helper to parse ChatGPT/AI share links and download local images
-async function extractChatWithImages(
-  url: string,
-  extractImages: boolean = true,
-) {
-  let browser;
-  try {
-    const browserlessWsEndpoint = process.env.BROWSERLESS_WS_ENDPOINT;
-    const browserlessToken =
-      process.env.BROWSERLESS_TOKEN ||
-      "2UUaQFRvjHXBtgr8fefbc37d4cfbd5740af20de1d8e200498";
-    if (browserlessWsEndpoint || browserlessToken) {
-      try {
-        const wsEndpoint =
-          browserlessWsEndpoint ||
-          `wss://chrome.browserless.io?token=${browserlessToken}`;
-        browser = await puppeteer.connect({
-          browserWSEndpoint: wsEndpoint,
-        });
-      } catch (e) {
-        console.warn(
-          "Could not connect to browserless (possibly 401 or network error), falling back to local puppeteer.",
-          e,
-        );
-        browser = await puppeteer.launch({
-          headless: true,
-          args: [
-            "--no-sandbox", 
-            "--disable-setuid-sandbox",
-            "--disable-dev-shm-usage",
-            "--disable-gpu",
-            "--no-zygote",
-            "--js-flags=--max-old-space-size=256",
-            "--disable-site-isolation-trials",
-            "--disable-accelerated-2d-canvas",
-            "--mute-audio",
-            "--disable-extensions",
-            "--no-first-run",
-            "--disable-default-apps",
-            "--disable-sync",
-            "--disable-translate",
-            "--hide-scrollbars",
-            "--metrics-recording-only",
-            "--safebrowsing-disable-auto-update"
-          ],
-        });
-      }
-    } else {
-      browser = await puppeteer.launch({
-        headless: true,
-        args: [
-          "--no-sandbox",
-          "--disable-setuid-sandbox",
-          "--disable-dev-shm-usage",
-          "--disable-gpu",
-          "--no-zygote",
-          "--js-flags=--max-old-space-size=256",
-          "--disable-site-isolation-trials",
-          "--disable-accelerated-2d-canvas",
-          "--mute-audio",
-          "--disable-extensions",
-          "--no-first-run",
-          "--disable-default-apps",
-          "--disable-sync",
-          "--disable-translate",
-          "--hide-scrollbars",
-          "--metrics-recording-only",
-          "--safebrowsing-disable-auto-update"
-        ],
-      });
-    }
-    const page = await browser.newPage();
-
-    // Block unnecessary resources to save memory and speed up
-    await page.setRequestInterception(true);
-    page.on('request', (req) => {
-      const resourceType = req.resourceType();
-      if (['stylesheet', 'font', 'media'].includes(resourceType)) {
-        req.abort();
-      } else {
-        req.continue();
-      }
-    });
-
-    await page.setUserAgent(
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    );
-    await page.setExtraHTTPHeaders({
-      "Accept-Language": "en-US,en;q=0.9",
-    });
-    await page.setViewport({ width: 1280, height: 800 });
-
-    console.log(`Navigating to ${url}...`);
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 25000 });
-
-    // Instantly check for deleted chats BEFORE we wait for messages!
-    let bodyTextEarly = await page.evaluate(() => document.body.innerText);
-    if (!bodyTextEarly) bodyTextEarly = "";
-    if (
-      bodyTextEarly.includes("This shared chat was deleted") ||
-      bodyTextEarly.includes("This shared chat was delete") ||
-      bodyTextEarly.includes("Can't load shared conversation") ||
-      bodyTextEarly.includes("404 Not Found") ||
-      bodyTextEarly.includes("Conversation not found")
-    ) {
-      throw new Error("CHAT_DELETED");
-    }
-
-    try {
-      // Wait for React to render the messages, or timeout after 10000ms
-      await page.waitForSelector(
-        "[data-message-author-role], article, .prose",
-        { timeout: 10000 },
-      );
-    } catch (e) {
-      console.log(
-        "Wait for selector timed out, page might still be rendering or empty...",
-      );
-      // Try waiting a bit more for network traffic to settle
-      await new Promise((r) => setTimeout(r, 5000));
-    }
-
-    // Handle Cloudflare or other "Just a moment..." interstitials
-    let title = await page.title();
-
-    // Check if the chat was deleted
-    let bodyText = await page.evaluate(() => document.body.innerText);
-    fs.writeFileSync("debug-body.txt", bodyText);
-    console.log(
-      "Body text was",
-      bodyText.length,
-      "chars long. Sample:",
-      bodyText.substring(0, 500),
-    );
-    if (
-      bodyText.includes("This shared chat was deleted") ||
-      bodyText.includes("This shared chat was delete") ||
-      bodyText.includes("Can't load shared conversation") ||
-      bodyText.includes("404 Not Found") ||
-      bodyText.includes("Conversation not found")
-    ) {
-      throw new Error("CHAT_DELETED");
-    }
-
-    if (
-      title.includes("Sign in - Claude") ||
-      bodyText.includes("Sign in to continue") ||
-      bodyText.includes("Log in to continue") || 
-      title.includes("Log in")
-    ) {
-      throw new Error("LOGIN_REQUIRED");
-    }
-
-    if (
-      title.toLowerCase().includes("just a moment") ||
-      title.toLowerCase().includes("cloudflare")
-    ) {
-      console.log("Cloudflare detected, waiting for challenge to solve...");
-      try {
-        await page.waitForFunction(
-          () =>
-            !document.title.toLowerCase().includes("just a moment") &&
-            !document.title.toLowerCase().includes("cloudflare"),
-          { timeout: 8000 },
-        );
-      } catch (e) {
-        console.log("Timeout waiting for Cloudflare challenge to complete.");
-      }
-    }
-
-    // Handle Cloudflare by moving mouse randomly
-    console.log("Simulating mouse movements just in case...");
-    await page.mouse.move(100, 100);
-    await page.mouse.down();
-    await page.mouse.move(200, 200);
-    await page.mouse.up();
-    await new Promise((r) => setTimeout(r, 1000));
-    await page.mouse.move(300, 300);
-
-    let finalTitle = await page.title();
-    if (
-      finalTitle.toLowerCase().includes("just a moment") ||
-      finalTitle.toLowerCase().includes("cloudflare")
-    ) {
-      throw new Error("CLOUDFLARE_BLOCKED");
-    }
-
-    // Wait until chat messages are fully rendered in the DOM
-    console.log(`Waiting for chat elements...`);
-    try {
-      await page.waitForSelector(
-        '.markdown, [data-message-author-role], .font-claude-message, .font-user-message, .message, .chat-message, [data-testid="message"], article, .prose, .ProseMirror, user-query, model-response, .model-response, .user-query, response-container, message-content, .message-row, .message-bubble',
-        { timeout: 8000 },
-      );
-
-      // Auto-scroll to load lazy images
-      await page.evaluate(async () => {
-        await new Promise<void>((resolve) => {
-          let totalHeight = 0;
-          const distance = 800;
-          let iterations = 0;
-          const timer = setInterval(() => {
-            const scrollHeight = document.documentElement.scrollHeight;
-            window.scrollBy(0, distance);
-            totalHeight += distance;
-            iterations++;
-            // Maximum of 40 scrolls (about 2 seconds)
-            if (totalHeight >= scrollHeight || iterations > 40) {
-              clearInterval(timer);
-              resolve();
-            }
-          }, 50);
-        });
-      });
-      // Wait a moment for images to fetch
-      await new Promise((r) => setTimeout(r, 600));
-    } catch (timeoutErr) {
-      console.log(
-        `Timeout waiting for standard selectors. The page might be protected or have a different structure.`,
-      );
-    }
-
-    // Select all elements that contain messages and extract role/innerText
-    const messagesData = await page.evaluate(() => {
-      const strictSelector =
-        '[data-message-author-role], [data-testid="message"], article, .font-claude-message, .font-user-message, .message-row, .message-bubble, user-query, model-response, .user-query, .model-response, response-container, message-content, .chat-message';
-      const genericSelector = ".message, .markdown, .prose, .ProseMirror";
-
-      let elements = Array.from(document.querySelectorAll(strictSelector));
-      let activeSelector = strictSelector;
-
-      if (elements.length === 0) {
-        elements = Array.from(document.querySelectorAll(genericSelector));
-        activeSelector = genericSelector;
-      }
-
-      // Filter out nested matching elements to avoid duplicate extractions
-      let topLevelElements = elements.filter((el) => {
-        if (
-          el.closest(
-            'nav, aside, [class*="sidebar"]:not([class*="threadScrollVars"]), [class*="menu"], header, .drawer, .drawer-content, #onetrust-consent-sdk, [class*="onetrust"], [id*="onetrust"], [class*="cookie"], [id*="cookie"]',
-          )
-        )
-          return false;
-        let parent = el.parentElement;
-        while (parent) {
-          if (parent.matches && parent.matches(activeSelector)) {
-            return false;
-          }
-          parent = parent.parentElement;
-        }
-        return true;
-      });
-
-      return topLevelElements
-        .map((el) => {
-          // Try to find a time element nearby
-          const timeEl = el
-            .closest("div, article, [data-testid]")
-            ?.querySelector("time");
-          const timestamp = timeEl
-            ? timeEl.getAttribute("datetime")
-            : undefined;
-
-          const imgs = Array.from(el.querySelectorAll("img"))
-            .filter((img) => {
-              const w = parseInt(img.getAttribute("width") || "100", 10);
-              const h = parseInt(img.getAttribute("height") || "100", 10);
-              const className = (img.className || "").toLowerCase();
-              if (w <= 36 || h <= 36) return false;
-              if (
-                className.includes("w-4") ||
-                className.includes("w-5") ||
-                className.includes("icon") ||
-                className.includes("favicon") ||
-                className.includes("logo")
-              )
-                return false;
-              return true;
-            })
-            .map((img) => {
-              let src = (img as HTMLImageElement).src;
-              if (src && src.includes("_next/image") && src.includes("url=")) {
-                try {
-                  const urlParam = new URL(src).searchParams.get("url");
-                  if (urlParam) {
-                    // Check if it's already an absolute URL
-                    src = urlParam.startsWith("http")
-                      ? urlParam
-                      : `https://chatgpt.com${urlParam.startsWith("/") ? "" : "/"}${urlParam}`;
-                  }
-                } catch (e) {}
-              }
-
-              // Check if it's a blob
-              if (src.startsWith("blob:")) {
-                // Too complex to async fetch blobs within this sync map, but usually share links don't have blobs.
-              }
-
-              return src;
-            })
-            .filter(
-              (src) =>
-                src && (src.startsWith("http") || src.startsWith("data:image")),
-            );
-
-          const canvases = Array.from(el.querySelectorAll("canvas"))
-            .map((canvas: any) => {
-              try {
-                return canvas.toDataURL("image/png");
-              } catch (e) {
-                return null;
-              }
-            })
-            .filter(Boolean);
-
-          const bgImgs = Array.from(
-            el.querySelectorAll('[style*="background-image"]'),
-          )
-            .map((div) => {
-              const style = (div as HTMLElement).style.backgroundImage;
-              const match = style.match(/url\(["']?(.*?)["']?\)/);
-              return match ? match[1] : null;
-            })
-            .filter(
-              (src) =>
-                src && (src.startsWith("http") || src.startsWith("data:image")),
-            );
-
-          const allImgs = [...imgs, ...canvases, ...bgImgs].filter(
-            (src) =>
-              typeof src === "string" &&
-              !src.toLowerCase().includes("avatar") &&
-              !src.toLowerCase().includes("profile") &&
-              !src.toLowerCase().includes("favicon") &&
-              !src.toLowerCase().includes("icon") &&
-              !src.toLowerCase().includes("logo") &&
-              !src.toLowerCase().includes("brand"),
-          );
-
-          let role = el.getAttribute("data-message-author-role");
-          if (!role) {
-            // check children for role (sometimes the top level wrapper doesn't have it)
-            const childWithRole = el.querySelector(
-              "[data-message-author-role]",
-            );
-            if (childWithRole) {
-              role = childWithRole.getAttribute("data-message-author-role");
-            }
-          }
-          if (!role) {
-            // check data-testid for claude
-            const testId = (el.getAttribute("data-testid") || "").toLowerCase();
-            const cls =
-              el.className && typeof el.className === "string"
-                ? el.className.toLowerCase()
-                : "";
-            const isUserClass =
-              /(^|\s|-|_)(user|human|message-in|query|user-query)(\s|-|_|$)/i;
-            const isAssistantClass =
-              /(^|\s|-|_)(assistant|bot|ai|claude|message-out|model|model-response|gemini|chatgpt)(\s|-|_|$)/i;
-            const cleanClassName = cls
-              .replace(/user-select/g, "")
-              .replace(/select-none/g, "");
-
-            const hasUserChild = el.querySelector(
-              '[class*="user-message"], [class*="human"], [data-message-author-role="user"], user-query, [class*="user-query"]',
-            );
-            const hasAssistantChild = el.querySelector(
-              '[class*="claude-message"], [class*="assistant"], [class*="bot"], [data-message-author-role="assistant"], model-response, [class*="model-response"]',
-            );
-
-            const tagName = (el.tagName || "").toLowerCase();
-            if (
-              cleanClassName.includes("font-user-message") ||
-              testId.includes("user") ||
-              cleanClassName.match(isUserClass) ||
-              hasUserChild ||
-              tagName.includes("user-query")
-            ) {
-              role = "user";
-            } else if (
-              cleanClassName.includes("font-claude-message") ||
-              testId.includes("assistant") ||
-              cleanClassName.match(isAssistantClass) ||
-              hasAssistantChild ||
-              tagName.includes("model-response") ||
-              tagName.includes("response-container") ||
-              tagName.includes("message-content")
-            ) {
-              role = "assistant";
-            } else {
-              const textContent =
-                (el as HTMLElement).innerText || el.textContent || "";
-              if (textContent.match(/^\s*(You said|You|User):?/i)) {
-                role = "user";
-              } else if (
-                textContent.match(
-                  /^\s*(ChatGPT|Claude|Gemini|Assistant|Grok|Bot|AI)( said)?:?/i,
-                )
-              ) {
-                role = "assistant";
-              } else {
-                role = null;
-              }
-            }
-          }
-
-          return {
-            role,
-            htmlText: (() => {
-              const clone = el.cloneNode(true) as HTMLElement;
-              clone
-                .querySelectorAll(
-                  'script, style, svg, button, nav, header, footer, [aria-hidden="true"], .sr-only, .visually-hidden, .cdk-visually-hidden, #onetrust-consent-sdk, [class*="onetrust"], [id*="onetrust"], [class*="cookie-banner"]',
-                )
-                .forEach((n) => n.remove());
-              return clone.innerHTML;
-            })(),
-            text: (() => {
-              const clone = el.cloneNode(true) as HTMLElement;
-              clone
-                .querySelectorAll(
-                  'script, style, svg, button, nav, header, footer, [aria-hidden="true"], .sr-only, .visually-hidden, .cdk-visually-hidden, #onetrust-consent-sdk, [class*="onetrust"], [id*="onetrust"], [class*="cookie-banner"]',
-                )
-                .forEach((n) => n.remove());
-              let t = clone.innerText || clone.textContent || "";
-              t = t.replace(/Uploaded an image/gi, "");
-              t = t.replace(/Show moreShow less/gi, "");
-              return t.trim();
-            })(),
-            timestamp: timestamp || undefined,
-            imagesUrls: allImgs,
-          };
-        })
-        .filter((msg) => msg.text.trim() !== "" || msg.imagesUrls.length > 0); // Filter out truly empty messages
-    });
-
-    const docPageTitle = await page.title();
-    const docPageUrl = page.url();
-    const isGrok =
-      docPageTitle.toLowerCase().includes("grok") ||
-      docPageUrl.includes("grok.com");
-
-    // Second pass to resolve remaining unknown roles using flip-flop logic
-    let isUser = true;
-    for (const msg of messagesData) {
-      if (isGrok) {
-        msg.role = isUser ? "user" : "assistant";
-        isUser = !isUser;
-      } else if (!msg.role || msg.role === "unknown") {
-        msg.role = isUser ? "user" : "assistant";
-        isUser = !isUser; // Toggle for the next unknown message
-      } else {
-        isUser = msg.role !== "user"; // keep alternating correctly based on latest explicit role
-      }
-    }
-
-    if (messagesData.length === 0) {
-      console.log(
-        "No messages extracted with Puppeteer DOM selectors, trying static HTML fallback...",
-      );
-      const html = await page.content();
-      const extracted = extractMessagesFromHtml(html);
-      return {
-        title: extracted.title,
-        messages: extracted.messages.map((m) => ({
-          role: m.role,
-          text: m.content,
-          timestamp: m.timestamp,
-          images: [],
-          imagesUrls: [],
-        })),
-      };
-    }
-
-    // Download images and replace with local paths
-    const messages = [];
-    for (const msg of messagesData) {
-      const localImages = [];
-      if (extractImages) {
-        for (let i = 0; i < msg.imagesUrls.length; i++) {
-          const imgUrl = msg.imagesUrls[i];
-          const urlParts = imgUrl.split("?")[0].split("/");
-          const lastPart = urlParts[urlParts.length - 1] || "";
-          const extMatch = lastPart.match(/\.([a-zA-Z0-9]{1,4})$/);
-          const ext = extMatch ? extMatch[1].toLowerCase() : "png";
-          const filename = `${crypto.randomUUID()}.${ext}`;
-          const filepath = path.join(
-            process.cwd(),
-            "storage",
-            "images",
-            filename,
-          );
-
-          try {
-            if (imgUrl.startsWith("http")) {
-              const response = await fetch(imgUrl, {
-                headers: {
-                  "User-Agent":
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                  Referer: url || "https://chatgpt.com/",
-                },
-              });
-              if (response.ok) {
-                const arrayBuffer = await response.arrayBuffer();
-                const buffer = Buffer.from(arrayBuffer);
-                fs.writeFileSync(filepath, buffer);
-                localImages.push(`images/${filename}`);
-              } else {
-                localImages.push(imgUrl);
-              }
-            } else if (imgUrl.startsWith("data:image")) {
-              const matches = imgUrl.match(
-                /^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/,
-              );
-              if (matches && matches.length === 3) {
-                const buffer = Buffer.from(matches[2], "base64");
-                fs.writeFileSync(filepath, buffer);
-                localImages.push(`images/${filename}`);
-              } else {
-                localImages.push(imgUrl);
-              }
-            } else {
-              localImages.push(imgUrl);
-            }
-          } catch (err) {
-            console.error(`Failed to download ${imgUrl}:`, err);
-            localImages.push(imgUrl);
-          }
-        }
-      }
-
-      let finalMarkdown = msg.text;
-      if (msg.htmlText) {
-        try {
-          finalMarkdown = turndownService.turndown(msg.htmlText);
-          finalMarkdown = finalMarkdown
-            .replace(/Uploaded an image/gi, "")
-            .replace(/Show moreShow less/gi, "")
-            .trim();
-        } catch (e) {
-          console.warn("Turndown parsing failed, using fallback text", e);
-        }
-      }
-
-      messages.push({
-        role: msg.role,
-        text: finalMarkdown || msg.text,
-        timestamp: msg.timestamp,
-        images: localImages,
-      });
-    }
-
-    console.log("Puppeteer extracted:", messages.length);
-    console.log("Puppeteer Extracted messages length:", messages.length);
-    // Deduplicate perfectly adjacent identical texts
-    const deduplicatedMessages = messages.filter((msg, idx) => {
-      if (idx === 0) return true;
-      const prevMsg = messages[idx - 1];
-      return (
-        msg.text.trim() !== prevMsg.text.trim() || msg.role !== prevMsg.role
-      );
-    });
-
-    const pageTitle = (await page.title()) || "Extracted Chat";
-    return { title: pageTitle, messages: deduplicatedMessages };
-  } finally {
-    if (browser) {
-      await browser.close();
-    }
-  }
-}
-
 app.post("/api/extract", async (req, res) => {
   try {
     const { url, extractImages = true } = req.body;
@@ -692,21 +193,11 @@ app.post("/api/extract", async (req, res) => {
       setTimeout(() => reject(new Error("EXTRACTION_TIMEOUT")), 45000)
     );
 
-    const { title, messages } = (await Promise.race([
-      extractChatWithImages(url, extractImages),
-      timeoutPromise
-    ])) as { title: string, messages: any[] };
+    const { title, messages } = (await Promise.race([ extractChatViaAxios(url), timeoutPromise ])) as { title: string, messages: any[] };
 
     // Format them for the frontend
     const now = Date.now();
-    const formattedMessages = messages.map((m, index) => ({
-      role: m.role,
-      content: m.text,
-      images: m.images,
-      timestamp:
-        m.timestamp ||
-        new Date(now - (messages.length - index) * 60000).toISOString(), // Placeholder: 1 minute apart
-    }));
+    const formattedMessages = messages.map((m, index) => ({ role: m.role, content_html: m.content_html, content: m.content_html || '', timestamp: new Date(now - (messages.length - index) * 60000).toISOString() }));
 
     // If completely empty, just return error
     if (formattedMessages.length === 0) {
