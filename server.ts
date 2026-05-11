@@ -351,7 +351,7 @@ async function extractChatWithImages(
             const isUserClass =
               /(^|\s|-|_)(user|human|message-in|query|user-query)(\s|-|_|$)/i;
             const isAssistantClass =
-              /(^|\s|-|_)(assistant|bot|ai|claude|prose|ProseMirror|message-out|model|model-response|gemini|chatgpt|response-container|message-content|grok)(\s|-|_|$)/i;
+              /(^|\s|-|_)(assistant|bot|ai|claude|message-out|model|model-response|gemini|chatgpt|grok)(\s|-|_|$)/i;
             const cleanClassName = cls
               .replace(/user-select/g, "")
               .replace(/select-none/g, "");
@@ -360,7 +360,7 @@ async function extractChatWithImages(
               '[class*="user-message"], [class*="human"], [data-message-author-role="user"], user-query, [class*="user-query"]',
             );
             const hasAssistantChild = el.querySelector(
-              '[class*="claude-message"], [class*="assistant"], [class*="bot"], [data-message-author-role="assistant"], model-response, response-container, message-content, [class*="model-response"], [class*="response-container"]',
+              '[class*="claude-message"], [class*="assistant"], [class*="bot"], [data-message-author-role="assistant"], model-response, [class*="model-response"]',
             );
 
             const tagName = (el.tagName || "").toLowerCase();
@@ -1231,7 +1231,7 @@ function extractMessagesFromHtml(html: string) {
           const isUserClass =
             /(^|\s|-|_)(user|human|message-in|query|user-query)(\s|-|_|$)/i;
           const isAssistantClass =
-            /(^|\s|-|_)(assistant|bot|ai|claude|prose|ProseMirror|message-out|model|model-response|gemini|chatgpt|response-container|message-content|grok)(\s|-|_|$)/i;
+            /(^|\s|-|_)(assistant|bot|ai|claude|message-out|model|model-response|gemini|chatgpt|grok)(\s|-|_|$)/i;
           const cleanClassName = className
             .replace(/user-select/g, "")
             .replace(/select-none/g, "");
@@ -1246,8 +1246,6 @@ function extractMessagesFromHtml(html: string) {
             innerHtml.includes("font-claude-message") ||
             innerHtml.includes('data-message-author-role="assistant"') ||
             innerHtml.includes("model-response") ||
-            innerHtml.includes("response-container") ||
-            innerHtml.includes("message-content") ||
             innerHtml.includes("response-content");
 
           const tagName = (
