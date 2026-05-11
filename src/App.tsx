@@ -322,10 +322,32 @@ export default function App() {
         endpoint = '/api/extract-html';
       } else {
         setUploadProgress({ phase: 'Validating Link...', percent: 10 });
-        payload = { url: shareLink, extractImages };
-        endpoint = '/api/extract';
         await new Promise(r => setTimeout(r, 200));
-        setUploadProgress({ phase: 'Fetching Remote Page...', percent: 40 });
+        
+        let htmlText = '';
+        try {
+          setUploadProgress({ phase: 'Fetching Remote Page (Direct)...', percent: 20 });
+          // Fetch directly from frontend
+          const directRes = await fetch(shareLink);
+          if (directRes.ok) {
+            htmlText = await directRes.text();
+          } else {
+             throw new Error("Direct fetch failed");
+          }
+        } catch(e) {
+          console.log("Direct fetch failed, trying proxy");
+          setUploadProgress({ phase: 'Fetching Remote Page (Proxy)...', percent: 30 });
+          const proxyRes = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(shareLink));
+          if (proxyRes.ok) {
+            htmlText = await proxyRes.text();
+          } else {
+            throw new Error("Proxy fetch failed");
+          }
+        }
+        
+        payload = { html: htmlText };
+        endpoint = '/api/parse';
+        setUploadProgress({ phase: 'Sending HTML to server...', percent: 40 });
       }
 
       const res = await new Promise<any>((resolve, reject) => {

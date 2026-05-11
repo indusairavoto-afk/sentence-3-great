@@ -176,7 +176,54 @@ app.post("/api/public-bridge", async (req, res) => {
   }
 });
 
-// Helper to parse ChatGPT/AI share links and download local images
+// Helper to parse provided HTML contents
+app.post("/api/parse", async (req, res) => {
+  try {
+    const { html } = req.body;
+    if (!html) {
+      return res.status(400).json({ error: "HTML is required" });
+    }
+
+    const $ = cheerio.load(html);
+    const title = $("title").text() || "Extracted Chat";
+    const messages: any[] = [];
+
+    $("[data-message-author-role]").each((i, el) => {
+      let role = $(el).attr("data-message-author-role");
+      if (role !== "user" && role !== "assistant") {
+        role = "assistant"; // default fallback
+      }
+
+      let target = $(el).find('.markdown');
+      if (target.length === 0) {
+        target = $(el) as any;
+      } else {
+        target = target.first();
+      }
+
+      const contentHtml = cleanHtml($, target);
+      messages.push({
+        role: role,
+        content_html: contentHtml,
+      });
+    });
+
+    const now = Date.now();
+    const formattedMessages = messages.map((m, index) => ({
+      role: m.role,
+      content_html: m.content_html,
+      content: m.content_html || "",
+      timestamp: new Date(now - (messages.length - index) * 60000).toISOString(),
+    }));
+
+    res.json({ title, messages: formattedMessages });
+  } catch (error: any) {
+    console.error("Parse error:", error);
+    res.status(500).json({ error: "Parsing failed", details: error.message });
+  }
+});
+
+// Deprecated or proxy extract route if needed
 app.post("/api/extract", async (req, res) => {
   try {
     const { url, extractImages = true } = req.body;

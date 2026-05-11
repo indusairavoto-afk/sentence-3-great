@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build && esbuild server.ts --platform=node --format=cjs --outfile=dist/server.cjs --bundle --external:vite --external:express --external:puppeteer --external:puppeteer-extra --external:puppeteer-extra-plugin-stealth && npx puppeteer browsers install chrome",
+    "build": "vite build && esbuild server.ts --platform=node --format=cjs --outfile=dist/server.cjs --bundle --external:vite --external:express",
     "preview": "vite preview",
     "start": "node dist/server.cjs",
     "clean": "rm -rf dist",
