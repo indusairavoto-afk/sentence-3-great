@@ -326,37 +326,42 @@ export default function App() {
         let lastReadIndex = 0;
         
         xhr.onprogress = () => {
-          const newText = xhr.responseText.substring(lastReadIndex);
-          const lines = newText.split('\n');
-          for (let i = 0; i < lines.length - 1; i++) {
-            const line = lines[i];
-            if (line.trim()) {
-              try {
-                const parsed = JSON.parse(line);
-                if (parsed.type === 'progress') {
-                  setUploadProgress((prev: any) => ({
-                      ...prev,
-                      phase: parsed.message || (prev ? prev.phase : 'Processing...'),
-                      messagesOut: parsed.messagesFound != null ? parsed.messagesFound : prev?.messagesOut,
-                      imagesOut: parsed.imagesExtracted != null ? parsed.imagesExtracted : prev?.imagesOut,
-                      percent: prev ? prev.percent : 70
-                  }));
-                }
-              } catch(e) {}
-            }
-            lastReadIndex += line.length + 1;
+          if (!xhr.responseText) return;
+          const lines = xhr.responseText.split('\n').filter(l => l.trim().length > 0);
+          
+          for (let i = lines.length - 1; i >= 0; i--) {
+            try {
+              const parsed = JSON.parse(lines[i]);
+              if (parsed.type === 'progress') {
+                setUploadProgress((prev: any) => ({
+                    ...prev,
+                    phase: parsed.message || (prev ? prev.phase : 'Processing...'),
+                    messagesOut: parsed.messagesFound != null ? parsed.messagesFound : prev?.messagesOut,
+                    imagesOut: parsed.imagesExtracted != null ? parsed.imagesExtracted : prev?.imagesOut,
+                    percent: prev ? prev.percent : 70
+                }));
+                break;
+              }
+            } catch(e) {}
           }
         };
         
         xhr.onload = () => {
-          const newText = xhr.responseText.substring(lastReadIndex);
-          const lines = newText.split('\n');
+          if (!xhr.responseText) {
+             if (xhr.status >= 400) {
+               resolve({ ok: false, data: { error: 'SERVER_ERROR', message: `Server error ${xhr.status}` }});
+             } else {
+               reject(new Error('Empty response from server'));
+             }
+             return;
+          }
+          
+          const lines = xhr.responseText.split('\n').filter(l => l.trim().length > 0);
           let parsedData = null;
           let hasError = false;
           let errorData = null;
           
           for (const line of lines) {
-             if (!line.trim()) continue;
              try {
                const parsed = JSON.parse(line);
                if (parsed.type === 'complete') {
@@ -370,10 +375,25 @@ export default function App() {
           
           setUploadProgress({ phase: 'Finalizing Extraction...', percent: 95 });
           
+          // Fallback if not chunked format
+          if (!parsedData && !hasError) {
+             try {
+               const parsed = JSON.parse(xhr.responseText);
+               if (parsed.messages || parsed.title) {
+                 parsedData = parsed;
+               } else if (parsed.error) {
+                 hasError = true;
+                 errorData = parsed;
+               }
+             } catch(e) {}
+          }
+          
           if (hasError) {
              resolve({ ok: false, data: errorData });
           } else if (parsedData) {
              resolve({ ok: true, data: parsedData });
+          } else if (xhr.status >= 400) {
+             resolve({ ok: false, data: { error: 'SERVER_ERROR', message: `Server error ${xhr.status}. ${xhr.responseText.substring(0, 100)}` }});
           } else {
              reject(new Error('Incomplete response stream'));
           }
