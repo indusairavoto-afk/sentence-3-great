@@ -1154,9 +1154,16 @@ export default function App() {
                             </div>
                           )}
 
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {msg.content}
-                          </ReactMarkdown>
+                          <div className="prose dark:prose-invert max-w-none text-sm leading-relaxed prose-p:my-2 prose-pre:my-3 prose-pre:bg-zinc-100 dark:prose-pre:bg-zinc-800 prose-pre:text-zinc-900 dark:prose-pre:text-zinc-100 prose-img:max-h-32 prose-img:object-contain prose-img:rounded-md prose-img:my-2">
+                            <ReactMarkdown 
+                              remarkPlugins={[remarkGfm]}
+                              components={{
+                                img: ({node, ...props}) => <img {...props} className="max-w-full h-auto max-h-32 object-contain rounded-md my-2 inline-block shadow-sm border border-zinc-200 dark:border-zinc-800" />
+                              }}
+                            >
+                              {msg.content}
+                            </ReactMarkdown>
+                          </div>
 
                           {msg.content.includes('Uploaded image') && msg.role === 'user' && (!msg.images || msg.images.length === 0) && (
                             <div className="mt-3 text-xs opacity-80 bg-black/5 dark:bg-white/5 p-3 rounded-lg border border-black/10 dark:border-white/10 flex flex-col gap-1.5">

@@ -351,7 +351,7 @@ async function extractChatWithImages(
             const isUserClass =
               /(^|\s|-|_)(user|human|message-in|query|user-query)(\s|-|_|$)/i;
             const isAssistantClass =
-              /(^|\s|-|_)(assistant|bot|ai|claude|message-out|model|model-response|gemini|chatgpt|grok)(\s|-|_|$)/i;
+              /(^|\s|-|_)(assistant|bot|ai|claude|message-out|model|model-response|gemini|chatgpt)(\s|-|_|$)/i;
             const cleanClassName = cls
               .replace(/user-select/g, "")
               .replace(/select-none/g, "");
@@ -1231,7 +1231,7 @@ function extractMessagesFromHtml(html: string) {
           const isUserClass =
             /(^|\s|-|_)(user|human|message-in|query|user-query)(\s|-|_|$)/i;
           const isAssistantClass =
-            /(^|\s|-|_)(assistant|bot|ai|claude|message-out|model|model-response|gemini|chatgpt|grok)(\s|-|_|$)/i;
+            /(^|\s|-|_)(assistant|bot|ai|claude|message-out|model|model-response|gemini|chatgpt)(\s|-|_|$)/i;
           const cleanClassName = className
             .replace(/user-select/g, "")
             .replace(/select-none/g, "");
