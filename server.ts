@@ -7,18 +7,32 @@ import { convert } from "html-to-text";
 import crypto from "crypto";
 import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
+import TurndownService from "turndown";
+import { gfm } from "turndown-plugin-gfm";
+
+const turndownService = new TurndownService({
+  headingStyle: "atx",
+  codeBlockStyle: "fenced",
+});
+turndownService.use(gfm);
 
 const stealth = StealthPlugin();
-stealth.enabledEvasions.delete('iframe.contentWindow');
+stealth.enabledEvasions.delete("iframe.contentWindow");
 puppeteer.use(stealth);
 
 const app = express();
 let debugLogs = [];
 const origLog = console.log;
-console.log = function(...args) { debugLogs.push(args.join(' ')); origLog(...args); };
+console.log = function (...args) {
+  debugLogs.push(args.join(" "));
+  origLog(...args);
+};
 const origErr = console.error;
-console.error = function(...args) { debugLogs.push('ERR: ' + args.join(' ')); origErr(...args); };
-app.get('/api/debug-logs', (req, res) => res.json(debugLogs));
+console.error = function (...args) {
+  debugLogs.push("ERR: " + args.join(" "));
+  origErr(...args);
+};
+app.get("/api/debug-logs", (req, res) => res.json(debugLogs));
 const PORT = 3000;
 
 app.use(express.json({ limit: "50mb" }));
@@ -73,15 +87,22 @@ async function extractChatWithImages(
   let browser;
   try {
     const browserlessWsEndpoint = process.env.BROWSERLESS_WS_ENDPOINT;
-    const browserlessToken = process.env.BROWSERLESS_TOKEN || "2UUaQFRvjHXBtgr8fefbc37d4cfbd5740af20de1d8e200498";
+    const browserlessToken =
+      process.env.BROWSERLESS_TOKEN ||
+      "2UUaQFRvjHXBtgr8fefbc37d4cfbd5740af20de1d8e200498";
     if (browserlessWsEndpoint || browserlessToken) {
       try {
-        const wsEndpoint = browserlessWsEndpoint || `wss://chrome.browserless.io?token=${browserlessToken}`;
+        const wsEndpoint =
+          browserlessWsEndpoint ||
+          `wss://chrome.browserless.io?token=${browserlessToken}`;
         browser = await puppeteer.connect({
-          browserWSEndpoint: wsEndpoint
+          browserWSEndpoint: wsEndpoint,
         });
       } catch (e) {
-        console.warn("Could not connect to browserless (possibly 401 or network error), falling back to local puppeteer.", e);
+        console.warn(
+          "Could not connect to browserless (possibly 401 or network error), falling back to local puppeteer.",
+          e,
+        );
         browser = await puppeteer.launch({
           headless: true,
           args: ["--no-sandbox", "--disable-setuid-sandbox"],
@@ -94,9 +115,11 @@ async function extractChatWithImages(
       });
     }
     const page = await browser.newPage();
-    await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+    await page.setUserAgent(
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    );
     await page.setExtraHTTPHeaders({
-       'Accept-Language': 'en-US,en;q=0.9',
+      "Accept-Language": "en-US,en;q=0.9",
     });
     await page.setViewport({ width: 1280, height: 800 });
 
@@ -105,40 +128,61 @@ async function extractChatWithImages(
 
     // Instantly check for deleted chats BEFORE we wait for messages!
     let bodyTextEarly = await page.evaluate(() => document.body.innerText);
-    if (bodyTextEarly.includes("This shared chat was deleted") || bodyTextEarly.includes("This shared chat was delete")) {
-       throw new Error("CHAT_DELETED");
+    if (
+      bodyTextEarly.includes("This shared chat was deleted") ||
+      bodyTextEarly.includes("This shared chat was delete")
+    ) {
+      throw new Error("CHAT_DELETED");
     }
 
     try {
       // Wait for React to render the messages, or timeout after 10000ms
-      await page.waitForSelector('[data-message-author-role], article, .prose', { timeout: 10000 });
+      await page.waitForSelector(
+        "[data-message-author-role], article, .prose",
+        { timeout: 10000 },
+      );
     } catch (e) {
-      console.log("Wait for selector timed out, page might still be rendering or empty...");
+      console.log(
+        "Wait for selector timed out, page might still be rendering or empty...",
+      );
       // Try waiting a bit more for network traffic to settle
-      await new Promise(r => setTimeout(r, 5000));
+      await new Promise((r) => setTimeout(r, 5000));
     }
 
     // Handle Cloudflare or other "Just a moment..." interstitials
     let title = await page.title();
-    
+
     // Check if the chat was deleted
     let bodyText = await page.evaluate(() => document.body.innerText);
-    fs.writeFileSync('debug-body.txt', bodyText);
-    console.log("Body text was", bodyText.length, "chars long. Sample:", bodyText.substring(0, 500));
-    if (bodyText.includes("This shared chat was deleted") || bodyText.includes("This shared chat was delete")) {
-       throw new Error("CHAT_DELETED");
+    fs.writeFileSync("debug-body.txt", bodyText);
+    console.log(
+      "Body text was",
+      bodyText.length,
+      "chars long. Sample:",
+      bodyText.substring(0, 500),
+    );
+    if (
+      bodyText.includes("This shared chat was deleted") ||
+      bodyText.includes("This shared chat was delete")
+    ) {
+      throw new Error("CHAT_DELETED");
     }
-    
-    if (title.toLowerCase().includes("just a moment") || title.toLowerCase().includes("cloudflare")) {
-       console.log("Cloudflare detected, waiting for challenge to solve...");
-       try {
-         await page.waitForFunction(
-           () => !document.title.toLowerCase().includes("just a moment") && !document.title.toLowerCase().includes("cloudflare"),
-           { timeout: 30000 }
-         );
-       } catch (e) {
-         console.log("Timeout waiting for Cloudflare challenge to complete.");
-       }
+
+    if (
+      title.toLowerCase().includes("just a moment") ||
+      title.toLowerCase().includes("cloudflare")
+    ) {
+      console.log("Cloudflare detected, waiting for challenge to solve...");
+      try {
+        await page.waitForFunction(
+          () =>
+            !document.title.toLowerCase().includes("just a moment") &&
+            !document.title.toLowerCase().includes("cloudflare"),
+          { timeout: 30000 },
+        );
+      } catch (e) {
+        console.log("Timeout waiting for Cloudflare challenge to complete.");
+      }
     }
 
     // Handle Cloudflare by moving mouse randomly
@@ -151,7 +195,10 @@ async function extractChatWithImages(
     await page.mouse.move(300, 300);
 
     let finalTitle = await page.title();
-    if (finalTitle.toLowerCase().includes("just a moment") || finalTitle.toLowerCase().includes("cloudflare")) {
+    if (
+      finalTitle.toLowerCase().includes("just a moment") ||
+      finalTitle.toLowerCase().includes("cloudflare")
+    ) {
       throw new Error("CLOUDFLARE_BLOCKED");
     }
 
@@ -192,195 +239,206 @@ async function extractChatWithImages(
 
     // Select all elements that contain messages and extract role/innerText
     const messagesData = await page.evaluate(() => {
-        const strictSelector = '[data-message-author-role], [data-testid="message"], article, .font-claude-message, .font-user-message, .message-row, .message-bubble, user-query, model-response, .user-query, .model-response, response-container, message-content, .chat-message';
-        const genericSelector = '.message, .markdown, .prose, .ProseMirror';
-        
-        let elements = Array.from(document.querySelectorAll(strictSelector));
-        let activeSelector = strictSelector;
+      const strictSelector =
+        '[data-message-author-role], [data-testid="message"], article, .font-claude-message, .font-user-message, .message-row, .message-bubble, user-query, model-response, .user-query, .model-response, response-container, message-content, .chat-message';
+      const genericSelector = ".message, .markdown, .prose, .ProseMirror";
 
-        if (elements.length === 0) {
-            elements = Array.from(document.querySelectorAll(genericSelector));
-            activeSelector = genericSelector;
-        }
-        
-        // Filter out nested matching elements to avoid duplicate extractions
-        let topLevelElements = elements.filter((el) => {
-          if (
-            el.closest(
-              'nav, aside, [class*="sidebar"]:not([class*="threadScrollVars"]), [class*="menu"], header, .drawer, .drawer-content',
-            )
+      let elements = Array.from(document.querySelectorAll(strictSelector));
+      let activeSelector = strictSelector;
+
+      if (elements.length === 0) {
+        elements = Array.from(document.querySelectorAll(genericSelector));
+        activeSelector = genericSelector;
+      }
+
+      // Filter out nested matching elements to avoid duplicate extractions
+      let topLevelElements = elements.filter((el) => {
+        if (
+          el.closest(
+            'nav, aside, [class*="sidebar"]:not([class*="threadScrollVars"]), [class*="menu"], header, .drawer, .drawer-content',
           )
+        )
+          return false;
+        let parent = el.parentElement;
+        while (parent) {
+          if (parent.matches && parent.matches(activeSelector)) {
             return false;
-          let parent = el.parentElement;
-          while (parent) {
-            if (parent.matches && parent.matches(activeSelector)) {
-              return false;
-            }
-            parent = parent.parentElement;
           }
-          return true;
-        });
+          parent = parent.parentElement;
+        }
+        return true;
+      });
 
-        return topLevelElements
-          .map((el) => {
-            // Try to find a time element nearby
-            const timeEl = el
-              .closest("div, article, [data-testid]")
-              ?.querySelector("time");
-            const timestamp = timeEl
-              ? timeEl.getAttribute("datetime")
-              : undefined;
+      return topLevelElements
+        .map((el) => {
+          // Try to find a time element nearby
+          const timeEl = el
+            .closest("div, article, [data-testid]")
+            ?.querySelector("time");
+          const timestamp = timeEl
+            ? timeEl.getAttribute("datetime")
+            : undefined;
 
-            const imgs = Array.from(el.querySelectorAll("img"))
-              .map((img) => {
-                let src = (img as HTMLImageElement).src;
-                if (
-                  src &&
-                  src.includes("_next/image") &&
-                  src.includes("url=")
-                ) {
-                  try {
-                    const urlParam = new URL(src).searchParams.get("url");
-                    if (urlParam) {
-                      // Check if it's already an absolute URL
-                      src = urlParam.startsWith("http")
-                        ? urlParam
-                        : `https://chatgpt.com${urlParam.startsWith("/") ? "" : "/"}${urlParam}`;
-                    }
-                  } catch (e) {}
-                }
-
-                // Check if it's a blob
-                if (src.startsWith("blob:")) {
-                  // Too complex to async fetch blobs within this sync map, but usually share links don't have blobs.
-                }
-
-                return src;
-              })
-              .filter(
-                (src) =>
-                  src &&
-                  (src.startsWith("http") || src.startsWith("data:image")),
-              );
-
-            const canvases = Array.from(el.querySelectorAll("canvas"))
-              .map((canvas: any) => {
+          const imgs = Array.from(el.querySelectorAll("img"))
+            .map((img) => {
+              let src = (img as HTMLImageElement).src;
+              if (src && src.includes("_next/image") && src.includes("url=")) {
                 try {
-                  return canvas.toDataURL("image/png");
-                } catch (e) {
-                  return null;
-                }
-              })
-              .filter(Boolean);
-
-            const bgImgs = Array.from(
-              el.querySelectorAll('[style*="background-image"]'),
-            )
-              .map((div) => {
-                const style = (div as HTMLElement).style.backgroundImage;
-                const match = style.match(/url\(["']?(.*?)["']?\)/);
-                return match ? match[1] : null;
-              })
-              .filter(
-                (src) =>
-                  src &&
-                  (src.startsWith("http") || src.startsWith("data:image")),
-              );
-
-            const allImgs = [...imgs, ...canvases, ...bgImgs];
-
-            let role = el.getAttribute("data-message-author-role");
-            if (!role) {
-              // check children for role (sometimes the top level wrapper doesn't have it)
-              const childWithRole = el.querySelector(
-                "[data-message-author-role]",
-              );
-              if (childWithRole) {
-                role = childWithRole.getAttribute("data-message-author-role");
+                  const urlParam = new URL(src).searchParams.get("url");
+                  if (urlParam) {
+                    // Check if it's already an absolute URL
+                    src = urlParam.startsWith("http")
+                      ? urlParam
+                      : `https://chatgpt.com${urlParam.startsWith("/") ? "" : "/"}${urlParam}`;
+                  }
+                } catch (e) {}
               }
+
+              // Check if it's a blob
+              if (src.startsWith("blob:")) {
+                // Too complex to async fetch blobs within this sync map, but usually share links don't have blobs.
+              }
+
+              return src;
+            })
+            .filter(
+              (src) =>
+                src && (src.startsWith("http") || src.startsWith("data:image")),
+            );
+
+          const canvases = Array.from(el.querySelectorAll("canvas"))
+            .map((canvas: any) => {
+              try {
+                return canvas.toDataURL("image/png");
+              } catch (e) {
+                return null;
+              }
+            })
+            .filter(Boolean);
+
+          const bgImgs = Array.from(
+            el.querySelectorAll('[style*="background-image"]'),
+          )
+            .map((div) => {
+              const style = (div as HTMLElement).style.backgroundImage;
+              const match = style.match(/url\(["']?(.*?)["']?\)/);
+              return match ? match[1] : null;
+            })
+            .filter(
+              (src) =>
+                src && (src.startsWith("http") || src.startsWith("data:image")),
+            );
+
+          const allImgs = [...imgs, ...canvases, ...bgImgs];
+
+          let role = el.getAttribute("data-message-author-role");
+          if (!role) {
+            // check children for role (sometimes the top level wrapper doesn't have it)
+            const childWithRole = el.querySelector(
+              "[data-message-author-role]",
+            );
+            if (childWithRole) {
+              role = childWithRole.getAttribute("data-message-author-role");
             }
-            if (!role) {
-              // check data-testid for claude
-              const testId = (
-                el.getAttribute("data-testid") || ""
-              ).toLowerCase();
-              const cls =
-                el.className && typeof el.className === "string"
-                  ? el.className.toLowerCase()
-                  : "";
-              const isUserClass =
-                /(^|\s|-|_)(user|human|message-in|query|user-query)(\s|-|_|$)/i;
-              const isAssistantClass =
-                /(^|\s|-|_)(assistant|bot|ai|claude|prose|ProseMirror|message-out|model|model-response|gemini|chatgpt|response-container|message-content|grok)(\s|-|_|$)/i;
-              const cleanClassName = cls
-                .replace(/user-select/g, "")
-                .replace(/select-none/g, "");
+          }
+          if (!role) {
+            // check data-testid for claude
+            const testId = (el.getAttribute("data-testid") || "").toLowerCase();
+            const cls =
+              el.className && typeof el.className === "string"
+                ? el.className.toLowerCase()
+                : "";
+            const isUserClass =
+              /(^|\s|-|_)(user|human|message-in|query|user-query)(\s|-|_|$)/i;
+            const isAssistantClass =
+              /(^|\s|-|_)(assistant|bot|ai|claude|prose|ProseMirror|message-out|model|model-response|gemini|chatgpt|response-container|message-content|grok)(\s|-|_|$)/i;
+            const cleanClassName = cls
+              .replace(/user-select/g, "")
+              .replace(/select-none/g, "");
 
-              const hasUserChild = el.querySelector(
-                '[class*="user-message"], [class*="human"], [data-message-author-role="user"], user-query, [class*="user-query"]',
-              );
-              const hasAssistantChild = el.querySelector(
-                '[class*="claude-message"], [class*="assistant"], [class*="bot"], [data-message-author-role="assistant"], model-response, response-container, message-content, [class*="model-response"], [class*="response-container"]',
-              );
+            const hasUserChild = el.querySelector(
+              '[class*="user-message"], [class*="human"], [data-message-author-role="user"], user-query, [class*="user-query"]',
+            );
+            const hasAssistantChild = el.querySelector(
+              '[class*="claude-message"], [class*="assistant"], [class*="bot"], [data-message-author-role="assistant"], model-response, response-container, message-content, [class*="model-response"], [class*="response-container"]',
+            );
 
-              const tagName = (el.tagName || "").toLowerCase();
-              if (
-                cleanClassName.includes("font-user-message") ||
-                testId.includes("user") ||
-                cleanClassName.match(isUserClass) ||
-                hasUserChild ||
-                tagName.includes("user-query")
-              ) {
+            const tagName = (el.tagName || "").toLowerCase();
+            if (
+              cleanClassName.includes("font-user-message") ||
+              testId.includes("user") ||
+              cleanClassName.match(isUserClass) ||
+              hasUserChild ||
+              tagName.includes("user-query")
+            ) {
+              role = "user";
+            } else if (
+              cleanClassName.includes("font-claude-message") ||
+              testId.includes("assistant") ||
+              cleanClassName.match(isAssistantClass) ||
+              hasAssistantChild ||
+              tagName.includes("model-response") ||
+              tagName.includes("response-container") ||
+              tagName.includes("message-content")
+            ) {
+              role = "assistant";
+            } else {
+              const textContent =
+                (el as HTMLElement).innerText || el.textContent || "";
+              if (textContent.match(/^\s*(You said|You|User):?/i)) {
                 role = "user";
               } else if (
-                cleanClassName.includes("font-claude-message") ||
-                testId.includes("assistant") ||
-                cleanClassName.match(isAssistantClass) ||
-                hasAssistantChild ||
-                tagName.includes("model-response") ||
-                tagName.includes("response-container") ||
-                tagName.includes("message-content")
+                textContent.match(
+                  /^\s*(ChatGPT|Claude|Gemini|Assistant|Grok|Bot|AI)( said)?:?/i,
+                )
               ) {
                 role = "assistant";
               } else {
-                const textContent = (el as HTMLElement).innerText || el.textContent || "";
-                if (textContent.match(/^\s*(You said|You|User):?/i)) {
-                  role = "user";
-                } else if (textContent.match(/^\s*(ChatGPT|Claude|Gemini|Assistant|Grok|Bot|AI)( said)?:?/i)) {
-                  role = "assistant";
-                } else {
-                  role = null;
-                }
+                role = null;
               }
             }
+          }
 
-            return {
-              role,
-              text: (() => {
-                const clone = el.cloneNode(true) as HTMLElement;
-                clone.querySelectorAll('script, style, svg, button, nav, header, footer, [aria-hidden="true"], .sr-only, .visually-hidden, .cdk-visually-hidden').forEach(n => n.remove());
-                let t = clone.innerText || clone.textContent || "";
-                t = t.replace(/Uploaded an image/gi, "");
-                t = t.replace(/Show moreShow less/gi, "");
-                return t.trim();
-              })(),
-              timestamp: timestamp || undefined,
-              imagesUrls: allImgs.filter(
-                (src) => !src.includes("avatar") && !src.includes("profile"),
-              ),
-            };
-          })
-          .filter((msg) => msg.text.trim() !== "" || msg.imagesUrls.length > 0); // Filter out truly empty messages
+          return {
+            role,
+            htmlText: (() => {
+              const clone = el.cloneNode(true) as HTMLElement;
+              clone
+                .querySelectorAll(
+                  'script, style, svg, button, nav, header, footer, [aria-hidden="true"], .sr-only, .visually-hidden, .cdk-visually-hidden',
+                )
+                .forEach((n) => n.remove());
+              return clone.innerHTML;
+            })(),
+            text: (() => {
+              const clone = el.cloneNode(true) as HTMLElement;
+              clone
+                .querySelectorAll(
+                  'script, style, svg, button, nav, header, footer, [aria-hidden="true"], .sr-only, .visually-hidden, .cdk-visually-hidden',
+                )
+                .forEach((n) => n.remove());
+              let t = clone.innerText || clone.textContent || "";
+              t = t.replace(/Uploaded an image/gi, "");
+              t = t.replace(/Show moreShow less/gi, "");
+              return t.trim();
+            })(),
+            timestamp: timestamp || undefined,
+            imagesUrls: allImgs.filter(
+              (src) => !src.includes("avatar") && !src.includes("profile"),
+            ),
+          };
+        })
+        .filter((msg) => msg.text.trim() !== "" || msg.imagesUrls.length > 0); // Filter out truly empty messages
     });
 
     // Second pass to resolve remaining unknown roles using flip-flop logic
     let isUser = true;
     for (const msg of messagesData) {
-      if (!msg.role || msg.role === 'unknown') {
+      if (!msg.role || msg.role === "unknown") {
         msg.role = isUser ? "user" : "assistant";
         isUser = !isUser; // Toggle for the next unknown message
       } else {
-        isUser = msg.role !== 'user'; // keep alternating correctly based on latest explicit role
+        isUser = msg.role !== "user"; // keep alternating correctly based on latest explicit role
       }
     }
 
@@ -459,16 +517,29 @@ async function extractChatWithImages(
         }
       }
 
+      let finalMarkdown = msg.text;
+      if (msg.htmlText) {
+        try {
+          finalMarkdown = turndownService.turndown(msg.htmlText);
+          finalMarkdown = finalMarkdown
+            .replace(/Uploaded an image/gi, "")
+            .replace(/Show moreShow less/gi, "")
+            .trim();
+        } catch (e) {
+          console.warn("Turndown parsing failed, using fallback text", e);
+        }
+      }
+
       messages.push({
         role: msg.role,
-        text: msg.text,
+        text: finalMarkdown || msg.text,
         timestamp: msg.timestamp,
         images: localImages,
       });
     }
 
-    console.log('Puppeteer extracted:', messages.length);
-    console.log('Puppeteer Extracted messages length:', messages.length);
+    console.log("Puppeteer extracted:", messages.length);
+    console.log("Puppeteer Extracted messages length:", messages.length);
     // Deduplicate perfectly adjacent identical texts
     const deduplicatedMessages = messages.filter((msg, idx) => {
       if (idx === 0) return true;
@@ -516,7 +587,7 @@ app.post("/api/extract", async (req, res) => {
       const isChatGPT = url.includes("chatgpt.com");
       return res.status(422).json({
         error: "PARSING_FAILED",
-        message: isChatGPT 
+        message: isChatGPT
           ? "ChatGPT's anti-bot system is blocking our cloud servers from accessing this share link."
           : "Could not find any chat messages in the provided URL using Puppeteer extraction.",
         suggestion: isChatGPT
@@ -531,7 +602,7 @@ app.post("/api/extract", async (req, res) => {
       return res.status(404).json({
         error: "CHAT_DELETED",
         message: "The shared chat you provided has been deleted by its owner.",
-        suggestion: "Please try another valid chat share link."
+        suggestion: "Please try another valid chat share link.",
       });
     }
 
@@ -539,8 +610,10 @@ app.post("/api/extract", async (req, res) => {
       console.warn("Extraction blocked by Cloudflare for URL:", req.body.url);
       return res.status(403).json({
         error: "CLOUDFLARE_BLOCKED",
-        message: "This link is protected by Cloudflare and cannot be extracted automatically.",
-        suggestion: "Please use the 'Save as HTML' method directly in your browser and use the 'Upload HTML File' option instead.",
+        message:
+          "This link is protected by Cloudflare and cannot be extracted automatically.",
+        suggestion:
+          "Please use the 'Save as HTML' method directly in your browser and use the 'Upload HTML File' option instead.",
       });
     }
 
@@ -555,7 +628,8 @@ app.post("/api/extract", async (req, res) => {
         error: "TIMEOUT",
         message:
           "Extraction timed out. If you are hosting on Render, the default headless API limit might be reached, and local bypass failed. Please create a free account at Browserless.io and add BROWSERLESS_TOKEN to your environment variables on Render.",
-        suggestion: "Try again later, add a custom BROWSERLESS_TOKEN, or use Markdown/HTML export instead.",
+        suggestion:
+          "Try again later, add a custom BROWSERLESS_TOKEN, or use Markdown/HTML export instead.",
       });
     }
 
@@ -1056,9 +1130,10 @@ function extractMessagesFromHtml(html: string) {
 
   // 4. Fallback to parsing DOM elements (Generic, Claude & ChatGPT)
   if (messages.length === 0) {
-    const strictSelector = '[data-message-author-role], [data-testid="message"], article, .font-claude-message, .font-user-message, .message-row, .message-bubble, user-query, model-response, .user-query, .model-response, response-container, message-content, .chat-message';
-    const genericSelector = '.message, .markdown, .prose, .ProseMirror';
-    
+    const strictSelector =
+      '[data-message-author-role], [data-testid="message"], article, .font-claude-message, .font-user-message, .message-row, .message-bubble, user-query, model-response, .user-query, .model-response, response-container, message-content, .chat-message';
+    const genericSelector = ".message, .markdown, .prose, .ProseMirror";
+
     let messageNodes = $(strictSelector);
     let activeSelector = strictSelector;
 
@@ -1096,11 +1171,11 @@ function extractMessagesFromHtml(html: string) {
     if (topLevelNodes.length === 0) {
       let bestContainer: any = null;
       let maxScore = 0;
-      
+
       $("body *").each((_, el) => {
         const $el = $(el);
         // Exclude text-heavy containers like markdown bodies from being selected as chat containers
-        if ($el.is('.markdown, .prose, p, article:not([data-testid])')) return;
+        if ($el.is(".markdown, .prose, p, article:not([data-testid])")) return;
 
         let blockChildrenCount = 0;
         $el.children().each((_, child) => {
@@ -1108,11 +1183,16 @@ function extractMessagesFromHtml(html: string) {
           const textLength = $child.text().trim().length;
           // Count children that are actual visible blocks with some text
           // Avoid treating simple paragraphs or headers as full messages
-          if (textLength > 10 && !$child.is('script, style, noscript, nav, header, footer, p, h1, h2, h3, h4, h5, h6, ul, ol, li, span, a, strong, em, b, i, pre, code, blockquote')) {
+          if (
+            textLength > 10 &&
+            !$child.is(
+              "script, style, noscript, nav, header, footer, p, h1, h2, h3, h4, h5, h6, ul, ol, li, span, a, strong, em, b, i, pre, code, blockquote",
+            )
+          ) {
             blockChildrenCount++;
           }
         });
-        
+
         // A typical chat has at least a few messages. If we find a container with many structural blocks, it's a candidate.
         if (blockChildrenCount > maxScore && blockChildrenCount >= 2) {
           maxScore = blockChildrenCount;
@@ -1121,12 +1201,17 @@ function extractMessagesFromHtml(html: string) {
       });
 
       if (bestContainer) {
-        $(bestContainer).children().each((_, child) => {
-           const $child = $(child);
-           if ($child.text().trim().length > 0 && !$child.is('script, style, noscript, nav, header, footer')) {
-             topLevelNodes.push(child);
-           }
-        });
+        $(bestContainer)
+          .children()
+          .each((_, child) => {
+            const $child = $(child);
+            if (
+              $child.text().trim().length > 0 &&
+              !$child.is("script, style, noscript, nav, header, footer")
+            ) {
+              topLevelNodes.push(child);
+            }
+          });
       }
     }
 
@@ -1191,7 +1276,11 @@ function extractMessagesFromHtml(html: string) {
             const textContent = $el.text() || "";
             if (textContent.match(/^\s*(You said|You|User):?/i)) {
               role = "user";
-            } else if (textContent.match(/^\s*(ChatGPT|Claude|Gemini|Assistant|Grok|Bot|AI)( said)?:?/i)) {
+            } else if (
+              textContent.match(
+                /^\s*(ChatGPT|Claude|Gemini|Assistant|Grok|Bot|AI)( said)?:?/i,
+              )
+            ) {
               role = "assistant";
             } else {
               role = "unknown";
@@ -1204,11 +1293,20 @@ function extractMessagesFromHtml(html: string) {
           timeEl.length > 0 ? timeEl.attr("datetime") : undefined;
 
         const $clone = $el.clone();
-        $clone.find('script, style, svg, noscript, nav, header, footer, button, [aria-hidden="true"], .sr-only, .visually-hidden, .cdk-visually-hidden').remove();
-        let content = convert($clone.html() || "", {
-          wordwrap: false,
-          selectors: [{ selector: "pre", format: "dataTable" }],
-        });
+        $clone
+          .find(
+            'script, style, svg, noscript, nav, header, footer, button, [aria-hidden="true"], .sr-only, .visually-hidden, .cdk-visually-hidden',
+          )
+          .remove();
+        let content = "";
+        try {
+          content = turndownService.turndown($clone.html() || "");
+        } catch (e) {
+          content = convert($clone.html() || "", {
+            wordwrap: false,
+            selectors: [{ selector: "pre", format: "dataTable" }],
+          });
+        }
         content = content.replace(/Uploaded an image/gi, "");
         content = content.replace(/Show moreShow less/gi, "");
 
@@ -1273,7 +1371,12 @@ function extractMessagesFromHtml(html: string) {
       let main = $('main, .main, #content, [role="main"]').first();
       if (main.length === 0) main = $("body");
 
-      const content = convert(main.html() || "", { wordwrap: false });
+      let content = "";
+      try {
+        content = turndownService.turndown(main.html() || "");
+      } catch (e) {
+        content = convert(main.html() || "", { wordwrap: false });
+      }
 
       // Ignore "cookie preferences" or footer boilerplate
       const cleanedContent = content
@@ -1282,9 +1385,10 @@ function extractMessagesFromHtml(html: string) {
 
       if (cleanedContent.length > 20) {
         // Check if this looks like a generic transcript dump with "SOMEONE SAID:" markers
-        const splitRegex = /\n?(?:(?:[A-Za-z0-9_ ]+) )?([A-Za-z0-9_]+) SAID:\n/ig;
+        const splitRegex =
+          /\n?(?:(?:[A-Za-z0-9_ ]+) )?([A-Za-z0-9_]+) SAID:\n/gi;
         const hasMarkers = splitRegex.test(cleanedContent);
-        
+
         if (hasMarkers) {
           // Reset lastIndex because test() modifies it
           splitRegex.lastIndex = 0;
@@ -1294,7 +1398,7 @@ function extractMessagesFromHtml(html: string) {
             const speaker = parts[i] || "";
             const text = parts[i + 1] || "";
             if (!text.trim()) continue;
-            
+
             let currentRole = "user";
             if (speaker.match(/chatgpt|claude|gemini|assistant|bot|ai|grok/i)) {
               currentRole = "assistant";
@@ -1318,18 +1422,24 @@ function extractMessagesFromHtml(html: string) {
     return { title, messages: [] };
   }
 
-  console.log('Extracted messages length:', messages.length);
+  console.log("Extracted messages length:", messages.length);
   // Remove Claude shared chat boilerplate/disclaimer
-  let filteredMessages = messages.filter(msg => !(msg.content.includes('This is a copy of a chat between') && msg.content.includes('Anthropic')));
+  let filteredMessages = messages.filter(
+    (msg) =>
+      !(
+        msg.content.includes("This is a copy of a chat between") &&
+        msg.content.includes("Anthropic")
+      ),
+  );
 
   // Second pass to resolve remaining unknown roles using flip-flop logic
   let isUser = true;
   for (const msg of filteredMessages) {
-    if (!msg.role || msg.role === 'unknown') {
+    if (!msg.role || msg.role === "unknown") {
       msg.role = isUser ? "user" : "assistant";
       isUser = !isUser; // Toggle for the next unknown message
     } else {
-      isUser = msg.role !== 'user'; // keep alternating correctly based on latest explicit role
+      isUser = msg.role !== "user"; // keep alternating correctly based on latest explicit role
     }
   }
 
@@ -1337,7 +1447,9 @@ function extractMessagesFromHtml(html: string) {
   const deduplicatedMessages = filteredMessages.filter((msg, idx) => {
     if (idx === 0) return true;
     const prevMsg = filteredMessages[idx - 1];
-    return msg.content.trim() !== prevMsg.content.trim() || msg.role !== prevMsg.role;
+    return (
+      msg.content.trim() !== prevMsg.content.trim() || msg.role !== prevMsg.role
+    );
   });
 
   return { title, messages: deduplicatedMessages };
