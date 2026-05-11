@@ -343,8 +343,9 @@ export default function App() {
           try {
             const data = JSON.parse(xhr.responseText);
             resolve({ ok: xhr.status >= 200 && xhr.status < 300, data });
-          } catch {
-            reject(new Error('Server returned an invalid response format.'));
+          } catch (err) {
+            console.error("Failed to parse JSON response:", xhr.responseText.substring(0, 200));
+            reject(new Error(`Server error (Status ${xhr.status}). The server might have crashed due to memory limits or proxy timeout. Please reduce the chat size or upgrade hosting.`));
           }
         };
         

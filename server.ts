@@ -105,13 +105,25 @@ async function extractChatWithImages(
         );
         browser = await puppeteer.launch({
           headless: true,
-          args: ["--no-sandbox", "--disable-setuid-sandbox"],
+          args: [
+            "--no-sandbox", 
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+            "--no-zygote"
+          ],
         });
       }
     } else {
       browser = await puppeteer.launch({
         headless: true,
-        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+        args: [
+          "--no-sandbox", 
+          "--disable-setuid-sandbox",
+          "--disable-dev-shm-usage",
+          "--disable-gpu",
+          "--no-zygote"
+        ],
       });
     }
     const page = await browser.newPage();
@@ -124,7 +136,7 @@ async function extractChatWithImages(
     await page.setViewport({ width: 1280, height: 800 });
 
     console.log(`Navigating to ${url}...`);
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 90000 });
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
 
     // Instantly check for deleted chats BEFORE we wait for messages!
     let bodyTextEarly = await page.evaluate(() => document.body.innerText);
