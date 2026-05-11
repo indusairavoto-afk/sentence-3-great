@@ -688,28 +688,7 @@ export default function App() {
                         />
                       </div>
                       
-                      {shareLink.toLowerCase().includes('grok.com') && (
-                        <motion.div 
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="w-full max-w-md mt-6 p-4 border border-orange-500/30 bg-orange-50 dark:bg-orange-950/20 rounded-xl text-left shadow-lg relative z-20"
-                        >
-                          <div className="flex items-center gap-2 mb-2">
-                            <AlertCircle size={16} className="text-orange-600 dark:text-orange-400" />
-                            <h4 className="text-orange-800 dark:text-orange-300 font-bold text-xs uppercase tracking-wider">Cloudflare Protected</h4>
-                          </div>
-                          <p className="text-orange-700 dark:text-orange-400/80 text-xs leading-relaxed mb-4">
-                            Grok blocks automated access (CAPTCHA). To import your chat, please open Grok in your browser, press <kbd className="bg-orange-100 dark:bg-orange-900/40 px-1 py-0.5 rounded border border-orange-200 dark:border-orange-800 font-mono">Ctrl+S</kbd> to save it as HTML, and upload the file instead.
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => setInputMode('file')}
-                            className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-colors shadow shadow-orange-500/20"
-                          >
-                            Switch to HTML Upload
-                          </button>
-                        </motion.div>
-                      )}
+
                     </div>
                   )}
                     
@@ -717,7 +696,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={(e) => handleExtract(e, 'pdf', false)}
-                        disabled={inputMode === 'link' ? (loading || !shareLink || shareLink.toLowerCase().includes('grok.com')) : (loading || !htmlFile)}
+                        disabled={inputMode === 'link' ? (loading || !shareLink) : (loading || !htmlFile)}
                         className="w-full bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700 px-6 py-5 rounded-xl font-bold text-xs uppercase tracking-[0.2em] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex flex-col items-center justify-center gap-1 border border-zinc-200 dark:border-white/10 group relative overflow-hidden"
                       >
                         <span className="relative z-10">{uploadProgress ? `${uploadProgress.percent}%` : loading ? 'Bridging...' : 'AI Chat to PDF'}</span>
@@ -725,7 +704,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={(e) => handleExtract(e, 'bridge', true)}
-                        disabled={inputMode === 'link' ? (loading || !shareLink || shareLink.toLowerCase().includes('grok.com')) : (loading || !htmlFile)}
+                        disabled={inputMode === 'link' ? (loading || !shareLink) : (loading || !htmlFile)}
                         className="w-full bg-zinc-900 dark:bg-white text-white dark:text-black hover:bg-zinc-800 dark:hover:bg-zinc-100 px-6 py-5 rounded-xl font-bold text-xs uppercase tracking-[0.2em] shadow-2xl hover:shadow-[0_0_40px_rgba(0,0,0,0.3)] dark:hover:shadow-[0_0_40px_rgba(255,255,255,0.3)] disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-1 transition-all duration-300 flex flex-col items-center justify-center gap-1 border border-transparent dark:border-white/10 group relative overflow-hidden"
                       >
                         <div className="absolute inset-0 bg-white/20 dark:bg-black/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
