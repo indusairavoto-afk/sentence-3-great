@@ -52,39 +52,60 @@ function cleanHtml($, el) {
 import puppeteer from 'puppeteer-core';
 
 async function extractChatViaAxios(url: string) {
+  let data = "";
+  let usedPuppeteer = false;
+  
   const browserlessToken = process.env.BROWSERLESS_TOKEN || "2UUaQFRvjHXBtgr8fefbc37d4cfbd5740af20de1d8e200498";
   
-  const browser = await puppeteer.connect({
-    browserWSEndpoint: `wss://chrome.browserless.io?token=${browserlessToken}&stealth=true`
-  });
-  
-  let data = "";
   try {
-    const page = await browser.newPage();
-    // Avoid navigator.webdriver detection
-    await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-    await page.setExtraHTTPHeaders({
-       "Accept-Language": "en-US,en;q=0.9",
+    const browser = await puppeteer.connect({
+      browserWSEndpoint: `wss://chrome.browserless.io?token=${browserlessToken}&stealth=true`
     });
     
-    // Some Cloudflare instances check viewport
-    await page.setViewport({ width: 1280, height: 800 });
+    try {
+      usedPuppeteer = true;
+      const page = await browser.newPage();
+      await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+      await page.setExtraHTTPHeaders({
+         "Accept-Language": "en-US,en;q=0.9",
+      });
+      await page.setViewport({ width: 1280, height: 800 });
 
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 35000 });
-    
-    // Wait briefly to ensure rendering completes
-    await new Promise(r => setTimeout(r, 2000));
-    
-    data = await page.content();
-    
-    if (data.includes('404<!-- --> <!-- -->Not Found') || data.includes('<title>404 Not Found</title>')) {
-      throw new Error("CHAT_DELETED");
+      await page.goto(url, { waitUntil: 'networkidle2', timeout: 35000 });
+      await new Promise(r => setTimeout(r, 2000));
+      
+      data = await page.content();
+      
+      if (data.includes('404<!-- --> <!-- -->Not Found') || data.includes('<title>404 Not Found</title>')) {
+        throw new Error("CHAT_DELETED");
+      }
+    } finally {
+      await browser.close();
     }
-  } catch (error) {
-    console.error("Puppeteer fetch failed:", error);
-    throw error;
-  } finally {
-    await browser.close();
+  } catch (error: any) {
+    console.error("Puppeteer fetch failed, falling back to axios proxy:", error.message);
+    if (error.message && error.message.includes("CHAT_DELETED")) throw error;
+    
+    // Fallback to allorigins proxy
+    try {
+      const proxyUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(url);
+      const response = await axios.get(proxyUrl, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        },
+        timeout: 20000 
+      });
+      data = response.data;
+    } catch (proxyError: any) {
+      console.error("Proxy fetch failed, falling back to direct fetch:", proxyError.message);
+      const response = await axios.get(url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        },
+        timeout: 20000 
+      });
+      data = response.data;
+    }
   }
 
   const $ = cheerio.load(data);
