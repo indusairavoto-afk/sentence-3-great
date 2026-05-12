@@ -71,8 +71,15 @@ async function extractChatViaAxios(url: string) {
       });
       await page.setViewport({ width: 1280, height: 800 });
 
-      await page.goto(url, { waitUntil: 'networkidle2', timeout: 35000 });
-      await new Promise(r => setTimeout(r, 2000));
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 35000 });
+      
+      // Wait for ChatGPT rendering or Cloudflare challenge to resolve
+      try {
+        await page.waitForSelector('[data-message-author-role]', { timeout: 10000 });
+      } catch (e) {
+        // Fallback wait just in case
+        await new Promise(r => setTimeout(r, 2000));
+      }
       
       data = await page.content();
       
@@ -86,25 +93,41 @@ async function extractChatViaAxios(url: string) {
     console.error("Puppeteer fetch failed, falling back to axios proxy:", error.message);
     if (error.message && error.message.includes("CHAT_DELETED")) throw error;
     
-    // Fallback to allorigins proxy
+    // Fallback to Jina Reader proxy
     try {
-      const proxyUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(url);
+      console.log("Puppeteer fetch failed, falling back to Jina proxy...");
+      const proxyUrl = "https://r.jina.ai/" + url;
       const response = await axios.get(proxyUrl, {
         headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          "X-Return-Format": "html"
         },
         timeout: 20000 
       });
       data = response.data;
-    } catch (proxyError: any) {
-      console.error("Proxy fetch failed, falling back to direct fetch:", proxyError.message);
-      const response = await axios.get(url, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        },
-        timeout: 20000 
-      });
-      data = response.data;
+    } catch (jinaError: any) {
+      console.error("Jina fetch failed, falling back to allorigins proxy:", jinaError.message);
+      
+      // Fallback to allorigins proxy
+      try {
+        const proxyUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(url);
+        const response = await axios.get(proxyUrl, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+          },
+          timeout: 20000 
+        });
+        data = response.data;
+      } catch (proxyError: any) {
+        console.error("Proxy fetch failed, falling back to direct fetch:", proxyError.message);
+        const response = await axios.get(url, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+          },
+          timeout: 20000 
+        });
+        data = response.data;
+      }
     }
   }
 
@@ -303,10 +326,10 @@ app.post("/api/extract", async (req, res) => {
       return res.status(422).json({
         error: "PARSING_FAILED",
         message: isChatGPT
-          ? "ChatGPT's anti-bot system is blocking our cloud servers from accessing this share link."
+          ? "ChatGPT's anti-bot system is blocking our cloud servers. If deploying to Render, the default headless token might be exhausted."
           : "Could not find any chat messages in the provided URL using Puppeteer extraction.",
         suggestion: isChatGPT
-          ? "Please use the 'AI Chat to PDF' physical HTML upload method. Click 'AI CHAT TO PDF' for instructions."
+          ? "Set a custom BROWSERLESS_TOKEN in Render environment variables, or use physical HTML upload (AI CHAT TO PDF)."
           : "The link might be private, or the platform structure has changed.",
       });
     }

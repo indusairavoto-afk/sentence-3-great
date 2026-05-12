@@ -17,8 +17,12 @@ async function test(url) {
     });
     await page.setViewport({ width: 1280, height: 800 });
 
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 35000 });
-    await new Promise(r => setTimeout(r, 2000));
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 35000 });
+    try {
+      await page.waitForSelector('[data-message-author-role]', { timeout: 10000 });
+    } catch(e) {
+      console.log("Timeout waiting for selector");
+    }
     data = await page.content();
     console.log("data length:", data.length);
     console.log("has auth-role?", data.includes('data-message-author-role'));
